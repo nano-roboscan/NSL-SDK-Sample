@@ -4,3 +4,6 @@
 [submodule "NSL2206-Sample/nsl_lib"]
 	path = NSL2206-Sample/nsl_lib
 	url = https://github.com/nano-roboscan/nsl2206-Library.git
+[submodule "NSL1340_ROS2_HUMBLE_SAMPLE/NSL3130_driver/src/roboscan_nsl3130/nsl_lib"]
+	path = NSL1340_ROS2_HUMBLE_SAMPLE/NSL3130_driver/src/roboscan_nsl3130/nsl_lib
+	url = https://github.com/nano-roboscan/nsl3140-Library.git
