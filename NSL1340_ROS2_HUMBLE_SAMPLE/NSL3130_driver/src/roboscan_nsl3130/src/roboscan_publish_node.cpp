@@ -41,7 +41,7 @@ using namespace std;
 
 std::atomic<int> x_start = -1, y_start = -1;
 
-NslPCD tempFrame;
+std::unique_ptr<NslPCD> latestFrame = std::make_unique<NslPCD>();;
 
 static void callback_mouse_click(int event, int x, int y, int flags, void* user_data)
 {
@@ -84,7 +84,6 @@ roboscanPublisher::roboscanPublisher() :
 	mouseYpos = -1;
 	runThread = true;
     publisherThread.reset(new boost::thread(boost::bind(&roboscanPublisher::publisher_callback, this)));
-	subscriberThread.reset(new boost::thread(boost::bind(&roboscanPublisher::pcd_callback, this)));
 
     printf("\nRun rqt to view the image!\n");
     
@@ -94,7 +93,6 @@ roboscanPublisher::~roboscanPublisher()
 {
 	runThread = false;
 	publisherThread->join();
-	subscriberThread->join();
 	nsl_close();
 	printf("\nEnd nsl_close()\n");
     printf("End roboscanPublisher()!\n");
@@ -102,65 +100,19 @@ roboscanPublisher::~roboscanPublisher()
 
 void roboscanPublisher::publisher_callback()
 {
+	auto lastTime = chrono::steady_clock::now();
+	int frameCount = 0;
 	printf("start publisher_callback\n");
 
 	while(runThread){
-		std::unique_ptr<NslPCD> frameToProcess;
-		// lock_guard is valid only until this block
-		{
-			std::lock_guard<std::mutex> lock(backupFrameMutex);
-			if (!backupFrame.empty()) {
-				frameToProcess = std::move(backupFrame.front());
-				backupFrame.erase(backupFrame.begin());
-			}
-		}
 
-		if (frameToProcess) {
-			publishFrame(frameToProcess.get());
+		if( nsl_getPointCloudData(nsl_handle, latestFrame.get()) == NSL_ERROR_TYPE::NSL_SUCCESS )
+		{
+			frameCount++;			
+			publishFrame(latestFrame.get());
 		}
 
 		std::this_thread::sleep_for(std::chrono::milliseconds(10)); 
-	}
-
-	while( backupFrame.size() > 0 ){
-		backupFrame.erase(backupFrame.begin());
-	}
-
-	cv::destroyAllWindows();
-	printf("end publisher_callback\n");
-}
-
-
-void roboscanPublisher::pcd_callback()
-{
-	printf("start pcd_callback\n");
-	auto lastTime = chrono::steady_clock::now();
-	int frameCount = 0;
-	std::unique_ptr<NslPCD> frame = std::make_unique<NslPCD>();
-
-	while(runThread){
-
-		if( isReconfigure ){
-			isReconfigure = false;
-			reConfigure();
-		}
-
-		if( nslConfig.operationModeOpt != OPERATION_MODE_OPTIONS::NONE_MODE )
-		{
-			if( nsl_getPointCloudData(nsl_handle, frame.get()) == NSL_ERROR_TYPE::NSL_SUCCESS )
-			{
-				// lock_guard is valid only until this block
-				{
-					std::lock_guard<std::mutex> lock(backupFrameMutex);
-					backupFrame.push_back(std::move(frame));
-				}
-				
-				frame = std::make_unique<NslPCD>(); 
-				frameCount++;			
-			}
-		}
-
-		std::this_thread::sleep_for(std::chrono::milliseconds(1)); 
 		
 		auto now = chrono::steady_clock::now();
 		auto elapsed = chrono::duration_cast<chrono::milliseconds>(now - lastTime).count();
@@ -170,11 +122,12 @@ void roboscanPublisher::pcd_callback()
 			lastTime = now;
 			printf("frame = %d fps\n", viewerParam.frameCount);
 		}
-		
 	}
 
-	printf("end pcd_callback\n");
+	cv::destroyAllWindows();
+	printf("end publisher_callback\n");
 }
+
 
 
 rcl_interfaces::msg::SetParametersResult roboscanPublisher::parametersCallback( const std::vector<rclcpp::Parameter> &parameters)
@@ -496,7 +449,6 @@ void roboscanPublisher::initialise()
 	nslConfig.saturationOpt = FUNCTION_OPTIONS::FUNC_ON;
 	nslConfig.operationModeOpt = OPERATION_MODE_OPTIONS::DISTANCE_AMPLITUDE_MODE;
 
-	nsl_streamingOff(nsl_handle);
 	nsl_setMinAmplitude(nsl_handle, nslConfig.minAmplitude);
 	nsl_setIntegrationTime(nsl_handle, nslConfig.integrationTime3D, nslConfig.integrationTime3DHdr1, nslConfig.integrationTime3DHdr2, nslConfig.integrationTimeGrayScale);
 	nsl_setHdrMode(nsl_handle, nslConfig.hdrOpt);
@@ -728,8 +680,8 @@ void roboscanPublisher::publishFrame(NslPCD *frame)
 		std::vector<uint8_t> result;
 		result.reserve(frame->height * frame->width * 2);
 
-		int xMin = frame->xMin;
-		int yMin = frame->yMin;
+		int xMin = frame->roiXMin;
+		int yMin = frame->roiYMin;
 		
 		for (int y = 0; y < frame->height; ++y) {
 		    for (int x = 0; x < frame->width; ++x) {
@@ -757,8 +709,8 @@ void roboscanPublisher::publishFrame(NslPCD *frame)
 		std::vector<uint8_t> result;
 		result.reserve(frame->height * frame->width * 2);
 
-		int xMin = frame->xMin;
-		int yMin = frame->yMin;
+		int xMin = frame->roiXMin;
+		int yMin = frame->roiYMin;
 		
 		for (int y = 0; y < frame->height; ++y) {
 		    for (int x = 0; x < frame->width; ++x) {
@@ -805,7 +757,8 @@ void roboscanPublisher::publishFrame(NslPCD *frame)
 	}
 #endif
 
-	if( frame->operationMode != OPERATION_MODE_OPTIONS::RGB_MODE )
+	if( frame->operationMode != OPERATION_MODE_OPTIONS::RGB_MODE
+		&& frame->operationMode != OPERATION_MODE_OPTIONS::GRAYSCALE_MODE )
 	{
 		const size_t nPixel = frame->width * frame->height;
 		pcl::PointCloud<pcl::PointXYZI>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZI>());

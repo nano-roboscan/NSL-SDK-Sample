@@ -34,7 +34,6 @@ namespace nanosys {
 		~roboscanPublisher();
 
 		void publisher_callback();
-		void pcd_callback();
 		void reConfigure();
 		void publishFrame(NslPCD *frame);
 		void startStreaming();
@@ -49,13 +48,10 @@ namespace nanosys {
 		image_transport::Publisher imagePublisher;
 #endif
 
-		//std::vector<Frame *> backupFrame;
-		boost::scoped_ptr<boost::thread> subscriberThread;
 		boost::scoped_ptr<boost::thread> publisherThread;
 		bool runThread;
 
 	    struct ViewerParameter 	viewerParam;
-		NslPCD			nslPcd;
 		NslConfig 		nslConfig;
 		int 			nsl_handle;
 	private:
@@ -65,8 +61,6 @@ namespace nanosys {
 		void setWinName();
 		void timeDelay(int milli);
 
-		std::vector<std::unique_ptr<NslPCD>> backupFrame;
-		std::mutex backupFrameMutex;
 		
 		OnSetParametersCallbackHandle::SharedPtr callback_handle_;
 		rcl_interfaces::msg::SetParametersResult parametersCallback( const std::vector<rclcpp::Parameter> &parameters);
