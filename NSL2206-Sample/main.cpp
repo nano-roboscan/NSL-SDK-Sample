@@ -340,9 +340,9 @@ Mat addDistanceInfo(Mat distMat, NslPCD *ptNslPCD, int lidarWidth, int lidarHeig
  */
 void setMatrixColor(Mat image, int x, int y, NslVec3b color)
 {
-	image.at<Vec3b>(y,x)[0] = color[0];
-	image.at<Vec3b>(y,x)[1] = color[1];
-	image.at<Vec3b>(y,x)[2] = color[2];
+	image.at<Vec3b>(y,x)[0] = color.b;
+	image.at<Vec3b>(y,x)[1] = color.g;
+	image.at<Vec3b>(y,x)[2] = color.r;
 }
 
 /**
@@ -409,9 +409,9 @@ void processPointCloud(NslPCD *ptNslPCD)
 				}
 				else{
 					NslVec3b color3D = nsl_getDistanceColor(ptNslPCD->distance3D[OUT_Z][y+yMin][x+xMin]);
-					point.b = color3D[0];
-					point.g = color3D[1];
-					point.r = color3D[2];
+					point.b = color3D.b;
+					point.g = color3D.g;
+					point.r = color3D.r;
 				}
 			}
 #endif
