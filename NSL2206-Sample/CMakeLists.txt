@@ -10,9 +10,9 @@ include_directories(${OpenCV_INCLUDE_DIRS})
 
 
 find_path(NSL_LIB_INCLUDE_DIR NAMES nanolib.h PATHS nsl_lib/include REQUIRED)
-find_library(NSL_LIB_PATH NAMES nanolib PATHS nsl_lib/lib/linux-7.5 REQUIRED)
-#find_library(NSL_LIB_PATH NAMES nanolib PATHS nsl_lib/lib/aarch-7.5 REQUIRED)
-#find_library(NSL_LIB_PATH NAMES nanolib PATHS nsl_lib/lib/windows REQUIRED)
+find_library(NSL_LIB_PATH NAMES nanolib PATHS nsl_lib/lib/linux-7.5/shared REQUIRED)
+#find_library(NSL_LIB_PATH NAMES nanolib PATHS nsl_lib/lib/aarch-7.5/shared REQUIRED)
+#find_library(NSL_LIB_PATH NAMES nanolib PATHS nsl_lib/lib/windows/shared REQUIRED)
 
 add_compile_options(-Wno-deprecated-declarations)
 
