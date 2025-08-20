@@ -5,6 +5,7 @@ NSL2206-SDK와 NSL3140-SDK library입니다.
 - Visual studio 2019에서 테스트 되었습니다.
 - PCL-1.12.0-AllInOne-msvc2019-win64.exe 를 설치 후 opencv_library의 PATH 를 설정하여 사용 하십시오.
 - NSL3140의 기본 아이피는 192.168.0.220 입니다. 변경 시 WINDOWS Application을 사용하여 변경 가능합니다.
+- PCL 라이브러리를 설치한 경우 main.cpp의 __USED_PCL_LIBLARY__ 활성화 후 사용하세요.
 
 ## USB 인식용 rules 정의
 ```
