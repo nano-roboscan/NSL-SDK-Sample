@@ -24,7 +24,8 @@ $ sudo sysctl -w net.core.rmem_default=22020096
 
 ## LINUX 컴파일 방법
 ```
-$ cd NSL-SDK/NSL2206-SDK/SDK_SAMPLE or cd NSL-SDK/NSL3140-SDK/SDK_SAMPLE
+$ git clone --recurse-submodules https://github.com/nano-roboscan/NSL-SDK-Sample.git
+$ cd NSL-SDK-Sample/NSL2206-Sample or cd NSL-SDK-Sample/NSL3140-Sample
 $ mkdir build
 $ cd build
 $ cmake ..
