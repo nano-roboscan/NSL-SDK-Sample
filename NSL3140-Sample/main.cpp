@@ -395,9 +395,9 @@ void saveRGB(NslPCD *ptNslPCD, const std::string& filePath)
 
 	for (int i = 0; i < totalPixels; ++i) {
 	    dstPtr[i] = cv::Vec3b(
-	        srcPtr[i][0],  // blue
-	        srcPtr[i][1],  // green
-	        srcPtr[i][2]   // red
+	        srcPtr[i].b,  // blue
+	        srcPtr[i].g,  // green
+	        srcPtr[i].r   // red
 	    );
 	}
 
@@ -557,9 +557,9 @@ Mat addDistanceInfo(Mat distMat, NslPCD *ptNslPCD, int lidarWidth, int lidarHeig
  */
 void setMatrixColor(Mat image, int x, int y, NslVec3b color)
 {
-	image.at<Vec3b>(y,x)[0] = color[0];
-	image.at<Vec3b>(y,x)[1] = color[1];
-	image.at<Vec3b>(y,x)[2] = color[2];
+	image.at<Vec3b>(y,x)[0] = color.b;
+	image.at<Vec3b>(y,x)[1] = color.g;
+	image.at<Vec3b>(y,x)[2] = color.r;
 }
 
 /**
@@ -600,9 +600,9 @@ void processPointCloud(NslPCD *ptNslPCD)
 
 		for (int i = 0; i < totalPixels; ++i) {
 		    dstPtr[i] = cv::Vec3b(
-		        srcPtr[i][0],  // blue
-		        srcPtr[i][1],  // green
-		        srcPtr[i][2]   // red
+		        srcPtr[i].b,  // blue
+		        srcPtr[i].g,  // green
+		        srcPtr[i].r   // red
 		    );
 		}
 		
@@ -659,9 +659,9 @@ void processPointCloud(NslPCD *ptNslPCD)
 							&& ptNslPCD->distance3D[OUT_Z][y+yMin][x+xMin] >= gtViewerInfo.area_start && ptNslPCD->distance3D[OUT_Z][y+yMin][x+xMin] <= gtViewerInfo.area_end )
 						{
 							NslVec3b color3D = nsl_getDistanceColor(ptNslPCD->distance3D[OUT_Z][y+yMin][x+xMin]);
-							point.b = color3D[0];
-							point.g = color3D[1];
-							point.r = color3D[2];
+							point.b = color3D.b;
+							point.g = color3D.g;
+							point.r = color3D.r;
 							gtViewerInfo.area_inCount++;
 						}
 						else{
@@ -672,9 +672,9 @@ void processPointCloud(NslPCD *ptNslPCD)
 					}
 					else{
 						NslVec3b color3D = nsl_getDistanceColor(ptNslPCD->distance3D[OUT_Z][y+yMin][x+xMin]);
-						point.b = color3D[0];
-						point.g = color3D[1];
-						point.r = color3D[2];
+						point.b = color3D.b;
+						point.g = color3D.g;
+						point.r = color3D.r;
 					}
 				}
 #endif
@@ -885,7 +885,7 @@ int main(int argc, char *argv[])
 
 	nsl_setModulation(gtViewerInfo.handle, MODULATION_OPTIONS::MOD_12Mhz, MODULATION_CH_OPTIONS::MOD_CH0, FUNCTION_OPTIONS::FUNC_OFF);
 	nsl_setFrameRate(gtViewerInfo.handle, FRAME_RATE_OPTIONS::FRAME_15FPS);
-	nsl_setColorRange(13000, 500, NslOption::FUNCTION_OPTIONS::FUNC_OFF);
+	nsl_setColorRange(13000, MAX_GRAYSCALE_VALUE, NslOption::FUNCTION_OPTIONS::FUNC_ON);
 	nsl_setIntegrationTime(gtViewerInfo.handle, 500, 100, 0, 100);
 	nsl_setFilter(gtViewerInfo.handle, FUNCTION_OPTIONS::FUNC_ON, FUNCTION_OPTIONS::FUNC_ON, 300, 200, 100, 0, FUNCTION_OPTIONS::FUNC_OFF);
 	nsl_set3DFilter(gtViewerInfo.handle, 100);
@@ -893,10 +893,10 @@ int main(int argc, char *argv[])
 	printConfiguration();	
 
 //	nsl_streamingOn(gtViewerInfo.handle, OPERATION_MODE_OPTIONS::GRAYSCALE_MODE);
-//	nsl_streamingOn(gtViewerInfo.handle, OPERATION_MODE_OPTIONS::DISTANCE_AMPLITUDE_MODE);
+	nsl_streamingOn(gtViewerInfo.handle, OPERATION_MODE_OPTIONS::DISTANCE_AMPLITUDE_MODE);
 //	nsl_streamingOn(gtViewerInfo.handle, OPERATION_MODE_OPTIONS::DISTANCE_GRAYSCALE_MODE);
 //	nsl_streamingOn(gtViewerInfo.handle, OPERATION_MODE_OPTIONS::DISTANCE_MODE);
-	nsl_streamingOn(gtViewerInfo.handle, OPERATION_MODE_OPTIONS::RGB_DISTANCE_MODE);
+//	nsl_streamingOn(gtViewerInfo.handle, OPERATION_MODE_OPTIONS::RGB_DISTANCE_MODE);
 //	nsl_streamingOn(gtViewerInfo.handle, OPERATION_MODE_OPTIONS::RGB_DISTANCE_AMPLITUDE_MODE);
 
 	while( gtViewerInfo.mainRunning != 0 )
