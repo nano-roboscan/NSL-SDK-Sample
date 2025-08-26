@@ -68,6 +68,8 @@ using namespace NslOption;
 
 #define DISTANCE_INFO_HEIGHT	80
 #define VIEWER_SCALE_SIZE		2
+#define DRAW_POINT_CLOUD	0x01
+#define DRAW_OPENCV_VIEW	0x02
 
 typedef struct ViewerInfo_
 {
@@ -111,7 +113,7 @@ typedef struct ViewerInfo_
 	ViewerInfo_()
 	{
 		startLog = false; // true:save PCD & RGB log, false:default
-		drawView = 1;
+		drawView = DRAW_POINT_CLOUD | DRAW_OPENCV_VIEW;
 		mainRunning = 1;
 		mouseX = -1;
 		mouseY = -1;
@@ -199,19 +201,20 @@ int findPortsByVidPid(const std::string vid, const std::string pid, char *strPor
 
 #ifdef __USED_PCL_LIBLARY__
 
+
 void onKeyboardEvent(const pcl::visualization::KeyboardEvent& event, void* viewer_void) {
     if (event.getKeySym() == "Escape" && event.keyDown()) {
 		gtViewerInfo.mainRunning = 0;
     }
     else if (event.getKeySym() == "d" && event.keyDown()) {
-		gtViewerInfo.drawView ^= 1;
-		if( gtViewerInfo.drawView ) printf("gtViewerInfo.drawView On\n");
-		else printf("gtViewerInfo.drawView Off\n");
+		gtViewerInfo.drawView ^= DRAW_POINT_CLOUD;
+		if( gtViewerInfo.drawView & DRAW_POINT_CLOUD ) printf("POINT CLOUD DrawView On\n");
+		else printf("POINT CLOUD DrawView Off\n");
     }
 }
 
 void drawPointCloud()
-{
+{	
 	pcl::visualization::PCLVisualizer::Ptr viewer = gtViewerInfo.viewers[0];
 	pcl::PointCloud<pcl::PointXYZRGB>::Ptr point_cloud_ptr = gtViewerInfo.clouds[0];
 
@@ -279,6 +282,8 @@ char *getDataTypeName(OPERATION_MODE_OPTIONS type)
 {
 	switch(type)
 	{
+		case OPERATION_MODE_OPTIONS::NONE_MODE:
+			return (char *)"NONE";
 		case OPERATION_MODE_OPTIONS::DISTANCE_MODE:
 			return (char *)"D";
 		case OPERATION_MODE_OPTIONS::GRAYSCALE_MODE:
@@ -681,7 +686,12 @@ void processPointCloud(NslPCD *ptNslPCD)
 			}
 		}
 
-		if( includeDistance ){
+			
+#ifdef __USED_PCL_LIBLARY__
+		if( gtViewerInfo.drawView & DRAW_POINT_CLOUD )
+			drawPointCloud();
+#endif
+		if( includeDistance && gtViewerInfo.drawView & DRAW_OPENCV_VIEW ){
 			char distanceViewName[100];
 			int scaleSize = ptNslPCD->lidarType != LIDAR_TYPE_OPTIONS::TYPE_B ? 2 : 1;
 			int distanceWidth = lidarWidth*scaleSize;
@@ -724,16 +734,13 @@ void processPointCloud(NslPCD *ptNslPCD)
 			}
 	
 			imageDistance = addDistanceInfo(imageDistance, ptNslPCD, lidarWidth, lidarHeight, scaleSize);
-	
-#ifdef __USED_PCL_LIBLARY__
-			drawPointCloud();
-#endif
+
 			namedWindow(distanceViewName, WINDOW_NORMAL);
 			resizeWindow(distanceViewName, distanceWidth, distanceHeight);
 			imshow(distanceViewName, imageDistance);
 			setMouseCallback(distanceViewName, mouseCallbackCV);
 		}
-		else if( includeGrayscale ){
+		else if( includeGrayscale && gtViewerInfo.drawView & DRAW_OPENCV_VIEW ){
 			char distanceViewName[100];
 			sprintf(distanceViewName,"Grayscale 2D <%d>", handle);
 
@@ -743,7 +750,7 @@ void processPointCloud(NslPCD *ptNslPCD)
 			setMouseCallback(distanceViewName, mouseCallbackCV);
 		}
 	}
-	else if( includeRgb ) 
+	else if( includeRgb & gtViewerInfo.drawView & DRAW_OPENCV_VIEW ) 
 	{
 		char distanceViewName[100];
 		sprintf(distanceViewName,"RGB <%d>", handle);
@@ -887,8 +894,10 @@ int main(int argc, char *argv[])
 	nsl_setFrameRate(gtViewerInfo.handle, FRAME_RATE_OPTIONS::FRAME_15FPS);
 	nsl_setColorRange(13000, MAX_GRAYSCALE_VALUE, NslOption::FUNCTION_OPTIONS::FUNC_ON);
 	nsl_setIntegrationTime(gtViewerInfo.handle, 500, 100, 0, 100);
-	nsl_setFilter(gtViewerInfo.handle, FUNCTION_OPTIONS::FUNC_ON, FUNCTION_OPTIONS::FUNC_ON, 300, 200, 100, 0, FUNCTION_OPTIONS::FUNC_OFF);
+	nsl_setFilter(gtViewerInfo.handle, FUNCTION_OPTIONS::FUNC_ON, FUNCTION_OPTIONS::FUNC_ON, 300, 100, 100, 0, FUNCTION_OPTIONS::FUNC_OFF);
 	nsl_set3DFilter(gtViewerInfo.handle, 100);
+//	nsl_setFilter(gtViewerInfo.handle, FUNCTION_OPTIONS::FUNC_OFF, FUNCTION_OPTIONS::FUNC_OFF, 0, 0, 0, 0, FUNCTION_OPTIONS::FUNC_OFF);
+//	nsl_set3DFilter(gtViewerInfo.handle, 0);
 	nsl_getCurrentConfig(gtViewerInfo.handle, &gtViewerInfo.nslConfig);
 	printConfiguration();	
 
@@ -911,9 +920,9 @@ int main(int argc, char *argv[])
 			break;
 		}
 		else if( key == 'd' ){
-			gtViewerInfo.drawView ^= 1;
-			if( gtViewerInfo.drawView ) printf("gtViewerInfo.drawView On\n");
-			else printf("gtViewerInfo.drawView Off\n");
+			gtViewerInfo.drawView ^= DRAW_OPENCV_VIEW;
+			if( gtViewerInfo.drawView & DRAW_OPENCV_VIEW ) printf("Opencv DrawView On\n");
+			else printf("Opencv DrawView Off\n");
 		}
 		
 		//usleep(100);
