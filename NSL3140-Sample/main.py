@@ -20,7 +20,7 @@ import time
 # 0) 라이브러리 로드 (경로 수정)
 # ----------------------------------
 # Windows -> "nanolib.dll",  Linux -> "./libnanolib.so"
-DLL_PATHS = ["./nsl_lib/lib/linux/shared/libnanolib.so", "nsl_lib/lib/windows/shared/nanolib.dll", "/usr/local/lib/libnanolib.so"]
+DLL_PATHS = ["./nsl_lib/lib/linux/shared/libnanolib.so", "./nsl_lib/lib/windows/shared/nanolib.dll", "/usr/local/lib/libnanolib.so"]
 _nsl = None
 for p in DLL_PATHS:
     if os.path.exists(p):
@@ -29,9 +29,11 @@ for p in DLL_PATHS:
 if _nsl is None:
     # 마지막 시도: 시스템 경로에서
     try:
+        print("not found DLL_PATHS")
         _nsl = ctypes.CDLL("nanolib.dll")
     except Exception:
         try:
+            print("not found windows dll")
             _nsl = ctypes.CDLL("libnanolib.so")
         except Exception as e:
             raise RuntimeError(
@@ -73,6 +75,11 @@ OUT_X                   = 0
 OUT_Y                   = 1
 OUT_Z                   = 2
 MAX_OUT                 = 3
+
+LENS_NF                 = 0
+LENS_SF                 = 1
+LENS_WF                 = 2
+
   
 NSL_SUCCESS = 0  # 보통 0 성공. SDK와 다르면 수정
 
@@ -84,8 +91,8 @@ class ViewerInfo:
         self.mouseY = -1
         self.drawframeCount = 0
         self.temperature = 0.0
-        self.operationMode = "D"
         self.fps = 0
+        self.ipAddress = "192.168.0.220"
         self.start_time = time.time()
         # ----------------------------------
         # area settings
@@ -208,9 +215,8 @@ class NslPCD(Structure):
 
 # Python Wrapper
 class NanoLidar:
-    def __init__(self, ip="192.168.0.190", debug=FUNC_ON):
-        print("ip=", ip)
-        
+    def __init__(self, ip="192.168.0.220", debug=FUNC_ON):
+                
         _nsl.nsl_open.argtypes  = [c_char_p, ctypes.POINTER(NslConfig), c_int]
         _nsl.nsl_open.restype   = ctypes.c_int   # handle 반환
 
@@ -233,8 +239,8 @@ class NanoLidar:
         _nsl.nsl_getAmplitudeColor.restype  = NslVec3b
 
         self.cfg = NslConfig()
-        self.cfg.lensType = 1
-        self.cfg.lidarAngle = 0
+        self.cfg.lensType = LENS_SF     #필수 인자
+        self.cfg.lidarAngle = 0         #필수 인자
         self.handle = _nsl.nsl_open(ip.encode("utf-8"), ctypes.byref(self.cfg), debug)
         if self.handle < 0:
             raise RuntimeError("nsl_open 실패")
@@ -259,10 +265,10 @@ class NanoLidar:
         
     def get_distance_color(self, value):
         return _nsl.nsl_getDistanceColor(value)
-
+        
     def get_amplitude_color(self, value):
         return _nsl.nsl_getAmplitudeColor(value)
-
+        
     def close(self):
         _nsl.nsl_close()
         print("[NanoLidar] Closed")
@@ -408,7 +414,6 @@ def visualize_loop(ip="192.168.0.220", mode=DISTANCE_AMPLITUDE_MODE, with_open3d
                 # 프레임 미수신 시 잠깐 대기
                 time.sleep(0.005)
                 continue
-            
             viewerInfo.temperature = frame.temperature
             # --------- 2D Distance / Amplitude ----------
             # uint8 3채널 BGR 이미지
@@ -424,6 +429,7 @@ def visualize_loop(ip="192.168.0.220", mode=DISTANCE_AMPLITUDE_MODE, with_open3d
             viewerInfo.area_inCount = 0
             xMin = frame.roiXMin
             yMin = frame.roiYMin
+                        
             for y in range(frame.height):
                 for x in range(frame.width):
                     # 2D 이미지 색상
@@ -431,11 +437,9 @@ def visualize_loop(ip="192.168.0.220", mode=DISTANCE_AMPLITUDE_MODE, with_open3d
                     col_amp = lidar.get_amplitude_color(amplitude[y+yMin, x+xMin])
                     imageDistance[y+yMin, x+xMin] = [col_dist.b, col_dist.g, col_dist.r]
                     imageAmplitude[y+yMin, x+xMin] = [col_amp.b, col_amp.g, col_amp.r]
-                    
+
                     if use_o3d:
                         z_val = dist3d[OUT_Z, y+yMin, x+xMin]
-                        x_val = dist3d[OUT_X, y+yMin, x+xMin]
-                        y_val = dist3d[OUT_Y, y+yMin, x+xMin]
                                                     
                         if z_val < NSL_LIMIT_FOR_VALID_DATA:
                             # 3D 좌표 (m 단위)
@@ -462,6 +466,7 @@ def visualize_loop(ip="192.168.0.220", mode=DISTANCE_AMPLITUDE_MODE, with_open3d
                         
                         index += 1
 
+
             # --------- RGB ----------
             if frame.includeLidar:
                 if use_o3d:
@@ -482,7 +487,8 @@ def visualize_loop(ip="192.168.0.220", mode=DISTANCE_AMPLITUDE_MODE, with_open3d
                     vis2d = np.vstack([vis2d, small])
                     
                 vis2d = addDistanceInfo(vis2d, frame, 320, 240, 1)
-                cv2.imshow(winName, vis2d)  
+                cv2.imshow(winName, vis2d)
+                
             elif frame.includeRgb:
                 rgb = frame.np_rgb()
 
@@ -499,6 +505,7 @@ def visualize_loop(ip="192.168.0.220", mode=DISTANCE_AMPLITUDE_MODE, with_open3d
     finally:
         try:
             lidar.stop_stream()
+            lidar.close()
         except Exception:
             pass
             lidar.close()
@@ -519,7 +526,7 @@ if __name__ == "__main__":
     cv2.setMouseCallback(winName, mouseCallbackCV)
 
     visualize_loop(
-        ip="192.168.0.220",
+        ip=viewerInfo.ipAddress,
         mode=RGB_DISTANCE_MODE,  # DISTANCE_AMPLITUDE_MODE, RGB_DISTANCE_MODE
         with_open3d=False         # 3D 뷰 필요 없으면 False or True
     )
