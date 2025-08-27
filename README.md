@@ -1,15 +1,15 @@
 # NSL-SDK-Sample
-NSL2206-SDK와 NSL3140-SDK library입니다.
+NSL2206-SDK와 NSL3140-SDK library 사용 예제 입니다.
 
-## WINDOWS 컴파일 방법
+## WINDOWS 컴파일 방법(C++)
 - Visual studio 2019에서 테스트 되었습니다.
 - PCL-1.12.0-AllInOne-msvc2019-win64.exe 를 설치 후 opencv_library의 PATH 를 설정하여 사용 하십시오.
 - NSL3140의 기본 아이피는 192.168.0.220 입니다. 변경 시 WINDOWS Application을 사용하여 변경 가능합니다.
 - PCL 라이브러리를 설치한 경우 main.cpp의 __USED_PCL_LIBLARY__ 활성화 후 사용하세요.
 
 ## Python  
-- 기본 2D 뷰어는 OpenCV를 사용하며, Point Cloud을 경우 Open3D 를 사용
-- Open3D 미사용 시 main.py의 with_open3d를 False로 전환 후 사용
+- 기본 2D 뷰어는 OpenCV를 사용하며, Point Cloud을 경우 Open3D 를 사용 합니다.
+- Open3D 미사용 시 main.py의 with_open3d를 False로 전환 후 사용 합니다.
 
 ## USB 인식용 rules 정의
 ```
