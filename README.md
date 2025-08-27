@@ -1,4 +1,4 @@
-# NSL-SDK
+# NSL-SDK-Sample
 NSL2206-SDK와 NSL3140-SDK library입니다.
 
 ## WINDOWS 컴파일 방법
