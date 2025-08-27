@@ -13,25 +13,13 @@
 //#define __USED_PCL_LIBLARY__
 
 #ifdef _WINDOWS
-#include <Winsock2.h>
 #include <windows.h>
 #include <setupapi.h>
 #include <devguid.h>
 #include <regstr.h>
 
-#pragma comment(lib, "Ws2_32.lib")
 #pragma comment(lib, "setupapi.lib")
 
-struct WINSOCK2_INITIALIZE {
-	WINSOCK2_INITIALIZE()
-	{
-		WSADATA wsaData;
-		WSAStartup(MAKEWORD(2, 2), &wsaData);
-	}
-	~WINSOCK2_INITIALIZE() { WSACleanup(); }
-};
-
-WINSOCK2_INITIALIZE _startup;
 #else
 #include <sys/stat.h>
 #endif
@@ -691,7 +679,7 @@ void processPointCloud(NslPCD *ptNslPCD)
 		if( gtViewerInfo.drawView & DRAW_POINT_CLOUD )
 			drawPointCloud();
 #endif
-		if( includeDistance && gtViewerInfo.drawView & DRAW_OPENCV_VIEW ){
+		if( includeDistance && (gtViewerInfo.drawView & DRAW_OPENCV_VIEW) ){
 			char distanceViewName[100];
 			int scaleSize = ptNslPCD->lidarType != LIDAR_TYPE_OPTIONS::TYPE_B ? 2 : 1;
 			int distanceWidth = lidarWidth*scaleSize;
@@ -740,7 +728,7 @@ void processPointCloud(NslPCD *ptNslPCD)
 			imshow(distanceViewName, imageDistance);
 			setMouseCallback(distanceViewName, mouseCallbackCV);
 		}
-		else if( includeGrayscale && gtViewerInfo.drawView & DRAW_OPENCV_VIEW ){
+		else if( includeGrayscale && (gtViewerInfo.drawView & DRAW_OPENCV_VIEW) ){
 			char distanceViewName[100];
 			sprintf(distanceViewName,"Grayscale 2D <%d>", handle);
 
@@ -750,7 +738,7 @@ void processPointCloud(NslPCD *ptNslPCD)
 			setMouseCallback(distanceViewName, mouseCallbackCV);
 		}
 	}
-	else if( includeRgb & gtViewerInfo.drawView & DRAW_OPENCV_VIEW ) 
+	else if( includeRgb && (gtViewerInfo.drawView & DRAW_OPENCV_VIEW) ) 
 	{
 		char distanceViewName[100];
 		sprintf(distanceViewName,"RGB <%d>", handle);
