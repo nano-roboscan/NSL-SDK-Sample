@@ -107,8 +107,8 @@ typedef struct ViewerInfo_
 		mouseY = -1;
 
 		area_enable = true; // true : area display, false : all display
-		area_left = -800.0f; // mm
-		area_right = 1500.0f; // mm
+		area_left = -800;// -800.0f; // mm
+		area_right = 1500;// 1500.0f; // mm
 		area_top = -500.0f; // mm
 		area_bottom = 500.0f; // mm
 		area_start = 0.0f; // mm

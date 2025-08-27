@@ -208,10 +208,34 @@ class NslPCD(Structure):
 
 # Python Wrapper
 class NanoLidar:
-    def __init__(self, ip="192.168.0.190", debug=False):
+    def __init__(self, ip="192.168.0.190", debug=FUNC_ON):
         print("ip=", ip)
+        
+        _nsl.nsl_open.argtypes  = [c_char_p, ctypes.POINTER(NslConfig), c_int]
+        _nsl.nsl_open.restype   = ctypes.c_int   # handle 반환
+
+        _nsl.nsl_close.argtypes = []
+        _nsl.nsl_close.restype  = c_int
+
+        _nsl.nsl_streamingOn.argtypes  = [c_int, c_int]
+        _nsl.nsl_streamingOn.restype   = c_int
+
+        _nsl.nsl_streamingOff.argtypes = [c_int]
+        _nsl.nsl_streamingOff.restype  = c_int
+
+        _nsl.nsl_getPointCloudData.argtypes = [c_int, ctypes.POINTER(NslPCD), c_int]
+        _nsl.nsl_getPointCloudData.restype  = c_int
+
+        _nsl.nsl_getDistanceColor.argtypes = [c_int]
+        _nsl.nsl_getDistanceColor.restype  = NslVec3b
+
+        _nsl.nsl_getAmplitudeColor.argtypes = [c_int]
+        _nsl.nsl_getAmplitudeColor.restype  = NslVec3b
+
         self.cfg = NslConfig()
-        self.handle = _nsl.nsl_open(ip.encode("utf-8"), ctypes.byref(self.cfg), FUNC_ON)
+        self.cfg.lensType = 1
+        self.cfg.lidarAngle = 0
+        self.handle = _nsl.nsl_open(ip.encode("utf-8"), ctypes.byref(self.cfg), debug)
         if self.handle < 0:
             raise RuntimeError("nsl_open 실패")
         print(f"[NanoLidar] Opened. handle={self.handle}")
@@ -242,6 +266,11 @@ class NanoLidar:
     def close(self):
         _nsl.nsl_close()
         print("[NanoLidar] Closed")
+
+# -------------------------------------- global -------------------------------------------------#
+
+viewerInfo = ViewerInfo()
+winName = "Python example"  
 
 # -------------------------------------- function -------------------------------------------------#
 # --- mouseCallbackCV ---
@@ -328,6 +357,7 @@ def visualize_loop(ip="192.168.0.220", mode=DISTANCE_AMPLITUDE_MODE, with_open3d
         pcl_cloud = None
         cloud_points = None
         cloud_colors = None
+        sphere = None
         
         if with_open3d:
             try:
@@ -342,6 +372,26 @@ def visualize_loop(ip="192.168.0.220", mode=DISTANCE_AMPLITUDE_MODE, with_open3d
                 # 초기 빈 포인트클라우드 추가
                 o3d_vis.get_render_option().point_size = 1.0
                 o3d_vis.add_geometry(pcl_cloud)
+
+                
+                if viewerInfo.area_enable:
+
+                    xmin = viewerInfo.area_left / 1000.0
+                    xmax = viewerInfo.area_right / 1000.0
+                    ymin = -viewerInfo.area_top / 1000.0
+                    ymax = -viewerInfo.area_bottom / 1000.0
+                    zmin = -viewerInfo.area_start / 1000.0
+                    zmax = -viewerInfo.area_end / 1000.0
+
+                    aabb = o3d.geometry.AxisAlignedBoundingBox(
+                        min_bound=(xmin, ymin, zmin),
+                        max_bound=(xmax, ymax, zmax)
+                    )
+
+                    # 4) LineSet으로 변환 후 색상 지정
+                    box_lines = o3d.geometry.LineSet.create_from_axis_aligned_bounding_box(aabb)
+                    box_lines.paint_uniform_color([1, 0, 0])  # 빨강
+                    o3d_vis.add_geometry(box_lines)
 
                 print("open3D를 지원 합니다.")
             except Exception:
@@ -371,7 +421,7 @@ def visualize_loop(ip="192.168.0.220", mode=DISTANCE_AMPLITUDE_MODE, with_open3d
             dist3d = frame.np_distance3D()
             
             index = 0
-            area_inCount = 0
+            viewerInfo.area_inCount = 0
             xMin = frame.roiXMin
             yMin = frame.roiYMin
             for y in range(frame.height):
@@ -384,7 +434,9 @@ def visualize_loop(ip="192.168.0.220", mode=DISTANCE_AMPLITUDE_MODE, with_open3d
                     
                     if use_o3d:
                         z_val = dist3d[OUT_Z, y+yMin, x+xMin]
-                    
+                        x_val = dist3d[OUT_X, y+yMin, x+xMin]
+                        y_val = dist3d[OUT_Y, y+yMin, x+xMin]
+                                                    
                         if z_val < NSL_LIMIT_FOR_VALID_DATA:
                             # 3D 좌표 (m 단위)
                             cloud_points[index, OUT_X] = dist3d[OUT_X, y+yMin, x+xMin] / 1000.0
@@ -395,13 +447,13 @@ def visualize_loop(ip="192.168.0.220", mode=DISTANCE_AMPLITUDE_MODE, with_open3d
                             if viewerInfo.area_enable:
                                 x_val = dist3d[OUT_X, y+yMin, x+xMin]
                                 y_val = dist3d[OUT_Y, y+yMin, x+xMin]
-                                z_val_mm = z_val
+
                                 if (viewerInfo.area_left <= x_val <= viewerInfo.area_right and
                                     viewerInfo.area_top <= y_val <= viewerInfo.area_bottom and
-                                    viewerInfo.area_start <= z_val_mm <= viewerInfo.area_end):
-                                    color3D = lidar.get_distance_color(int(z_val_mm))
+                                    viewerInfo.area_start <= z_val <= viewerInfo.area_end):
+                                    color3D = lidar.get_distance_color(int(z_val))
                                     cloud_colors[index] = [color3D.r/255.0, color3D.g/255.0, color3D.b/255.0]
-                                    area_inCount += 1
+                                    viewerInfo.area_inCount += 1
                                 else:
                                     cloud_colors[index] = [196/255.0]*3
                             else:
@@ -425,16 +477,15 @@ def visualize_loop(ip="192.168.0.220", mode=DISTANCE_AMPLITUDE_MODE, with_open3d
                 # 합쳐서 보기
                 vis2d = np.hstack([imageDistance, imageAmplitude])
                 if frame.includeRgb:
-                    rgb = frame.np_rgb()  # (1080,1920,3), BGR 아님(센서 raw 순서가 bgr일지 확인 필요)
+                    rgb = frame.np_rgb()
                     small = cv2.resize(rgb, (640, 240))
                     vis2d = np.vstack([vis2d, small])
                     
                 vis2d = addDistanceInfo(vis2d, frame, 320, 240, 1)
                 cv2.imshow(winName, vis2d)  
             elif frame.includeRgb:
-                rgb = frame.np_rgb()  # (1080,1920,3), BGR 아님(센서 raw 순서가 bgr일지 확인 필요)
-                # OpenCV는 BGR 가정 → 센서가 BGR이라면 그대로, RGB라면 cvtColor 필요
-                # 여기선 그대로 표시 (필요시 cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR))
+                rgb = frame.np_rgb()
+
                 small = cv2.resize(rgb, (640, 480))
                 cv2.imshow(winName, small)
 
@@ -455,31 +506,7 @@ def visualize_loop(ip="192.168.0.220", mode=DISTANCE_AMPLITUDE_MODE, with_open3d
             cv2.destroyAllWindows()
         except Exception:
             pass
-
-viewerInfo = ViewerInfo()
-
-_nsl.nsl_open.argtypes  = [c_char_p, ctypes.POINTER(NslConfig), c_int]
-_nsl.nsl_open.restype   = ctypes.c_int   # handle 반환
-
-_nsl.nsl_close.argtypes = []
-_nsl.nsl_close.restype  = c_int
-
-_nsl.nsl_streamingOn.argtypes  = [c_int, c_int]
-_nsl.nsl_streamingOn.restype   = c_int
-
-_nsl.nsl_streamingOff.argtypes = [c_int]
-_nsl.nsl_streamingOff.restype  = c_int
-
-_nsl.nsl_getPointCloudData.argtypes = [c_int, ctypes.POINTER(NslPCD), c_int]
-_nsl.nsl_getPointCloudData.restype  = c_int
-
-_nsl.nsl_getDistanceColor.argtypes = [c_int]
-_nsl.nsl_getDistanceColor.restype  = NslVec3b
-
-_nsl.nsl_getAmplitudeColor.argtypes = [c_int]
-_nsl.nsl_getAmplitudeColor.restype  = NslVec3b
-
-winName = "Python example"    
+  
 
 # excute
 if __name__ == "__main__":
