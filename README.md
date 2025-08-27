@@ -7,6 +7,10 @@ NSL2206-SDK와 NSL3140-SDK library입니다.
 - NSL3140의 기본 아이피는 192.168.0.220 입니다. 변경 시 WINDOWS Application을 사용하여 변경 가능합니다.
 - PCL 라이브러리를 설치한 경우 main.cpp의 __USED_PCL_LIBLARY__ 활성화 후 사용하세요.
 
+## Python  
+- 기본 2D 뷰어는 OpenCV를 사용하며, Point Cloud을 경우 Open3D 를 사용
+- Open3D 미사용 시 main.py의 with_open3d를 False로 전환 후 사용
+
 ## USB 인식용 rules 정의
 ```
 $ sudo vi /etc/udev/rules.d/defined_lidar.rules
@@ -34,5 +38,7 @@ $ make
 $ ./nslApp
 ```
 
-## Point cloud
+## Point cloud C++
 <img width="1033" height="863" alt="Image" src="https://github.com/user-attachments/assets/e44727e8-fb14-4700-b090-7506d2959b8f" />
+## Point cloud Python
+<img width="649" height="510" alt="Image" src="https://github.com/user-attachments/assets/d11b91ac-4e96-4815-898c-a5dd9e323ee4" />
