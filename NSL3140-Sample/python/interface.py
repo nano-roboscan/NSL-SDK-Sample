@@ -326,13 +326,30 @@ class NanoLidar:
 
         _nsl.nsl_getAmplitudeColor.argtypes = [c_int]
         _nsl.nsl_getAmplitudeColor.restype  = NslVec3b
-        
+
         self.cfg = NslConfig()
         self.cfg.lensType = lens_type     #필수 인자
         self.cfg.lidarAngle = lidar_angle #필수 인자
         self.handle = _nsl.nsl_open(ip.encode("utf-8"), ctypes.byref(self.cfg), debug)
         if self.handle < 0:
             raise RuntimeError("nsl_open 실패")
+
+        _nsl.nsl_setColorRange(MAX_DISTANCE_12MHZ, MAX_GRAYSCALE_VALUE, FUNC_ON)
+
+        self.dist_color_lut = np.array([
+            [_nsl.nsl_getDistanceColor(z).r / 255.0,
+             _nsl.nsl_getDistanceColor(z).g / 255.0,
+             _nsl.nsl_getDistanceColor(z).b / 255.0]
+            for z in range(NSL_EDGE_DETECTED+1)
+        ], dtype=np.float32)
+
+        self.ampl_color_lut = np.array([
+            [_nsl.nsl_getAmplitudeColor(z).r / 255.0,
+             _nsl.nsl_getAmplitudeColor(z).g / 255.0,
+             _nsl.nsl_getAmplitudeColor(z).b / 255.0]
+            for z in range(NSL_EDGE_DETECTED+1)
+        ], dtype=np.float32)
+        
         print(f"[NanoLidar] Opened. handle={self.handle}")
         
     def get_nsl_error(self, err_no):
@@ -366,12 +383,8 @@ class NanoLidar:
         print("[NanoLidar] Streaming OFF")
         return ret
 
-    def get_frame(self, timeout_ms=1000) -> NslPCD | None:
-        frame = NslPCD()
-        ret = _nsl.nsl_getPointCloudData(self.handle, ctypes.byref(frame), timeout_ms)
-        if ret == NSL_SUCCESS:
-            return frame
-        return None
+    def get_frame(self, frame, timeout_ms=1000) -> NslPCD | None:       
+        return _nsl.nsl_getPointCloudData(self.handle, ctypes.byref(frame), timeout_ms)
         
     def set_frame_rate(self, FRAME_RATE_OPTIONS):
         return _nsl.nsl_setFrameRate(self.handle, FRAME_RATE_OPTIONS) 
@@ -413,7 +426,14 @@ class NanoLidar:
         return _nsl.nsl_saveConfiguration(self.handle)
 
     def set_color_range(self, maxDistance, maxGrayscale, FUNCTION_OPTIONS_grayscale):
-        return _nsl.nsl_setColorRange(maxDistance, maxGrayscale, FUNCTION_OPTIONS_grayscale)
+        ret = _nsl.nsl_setColorRange(maxDistance, maxGrayscale, FUNCTION_OPTIONS_grayscale)
+        self.ampl_color_lut = np.array([
+            [_nsl.nsl_getAmplitudeColor(z).r / 255.0,
+             _nsl.nsl_getAmplitudeColor(z).g / 255.0,
+             _nsl.nsl_getAmplitudeColor(z).b / 255.0]
+            for z in range(NSL_EDGE_DETECTED+1)
+        ], dtype=np.float32)
+        return ret
     
     def get_distance_color(self, value):
         return _nsl.nsl_getDistanceColor(value)
@@ -428,18 +448,9 @@ class NanoLidar:
         반환: 2D NumPy 3채널 BGR 이미지, dtype=uint8
         """
 
-        H, W = value_array.shape
-        out = np.zeros((H, W, 3), dtype=np.uint8)
-        
-        # flatten 후 map 적용
-        flat = value_array.flatten()
-        colors = [_nsl.nsl_getDistanceColor(int(v)) for v in flat]
-
-        # RGB → NumPy 배열 변환
-        out[..., 0] = np.array([c.b for c in colors], dtype=np.uint8).reshape(H, W)  # B
-        out[..., 1] = np.array([c.g for c in colors], dtype=np.uint8).reshape(H, W)  # G
-        out[..., 2] = np.array([c.r for c in colors], dtype=np.uint8).reshape(H, W)  # R
-
+        clipped = np.clip(value_array, 0, NSL_EDGE_DETECTED)
+        colors = (self.dist_color_lut[clipped] * 255).astype(np.uint8)   # (H, W, 3)
+        out = colors[..., ::-1]
         return out
 
     def get_amplitude_color_array(self, value_array):
@@ -447,16 +458,9 @@ class NanoLidar:
         value_array: 2D NumPy 배열 (int)
         반환: 2D NumPy 3채널 BGR 이미지, dtype=uint8
         """
-        H, W = value_array.shape
-        out = np.zeros((H, W, 3), dtype=np.uint8)
-        
-        flat = value_array.flatten()
-        colors = [_nsl.nsl_getAmplitudeColor(int(v)) for v in flat]
-
-        out[..., 0] = np.array([c.b for c in colors], dtype=np.uint8).reshape(H, W)
-        out[..., 1] = np.array([c.g for c in colors], dtype=np.uint8).reshape(H, W)
-        out[..., 2] = np.array([c.r for c in colors], dtype=np.uint8).reshape(H, W)
-
+        clipped = np.clip(value_array, 0, NSL_EDGE_DETECTED)
+        colors = (self.ampl_color_lut[clipped] * 255).astype(np.uint8)   # (H, W, 3)
+        out = colors[..., ::-1]
         return out
         
     def close(self):
