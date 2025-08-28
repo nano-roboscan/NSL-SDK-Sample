@@ -189,7 +189,7 @@ def visualize_loop():
     lidar = interface.NanoLidar(viewerInfo.ipAddress, viewerInfo.lensType, viewerInfo.lidarAngle)
     lidar.set_filters(interface.FUNC_ON, interface.FUNC_ON, 300, 200, 100, 0, interface.FUNC_OFF)
     lidar.set_3d_filter(100)
-    lidar.set_frame_rate(interface.FRAME_30FPS)
+#    lidar.set_frame_rate(interface.FRAME_15FPS)
 #    lidar.set_color_range(interface.MAX_DISTANCE_12MHZ, interface.MAX_GRAYSCALE_VALUE, interface.FUNC_OFF)
     
     color_3d_lut = np.array([
