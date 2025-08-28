@@ -28,6 +28,7 @@ class ViewerInfo:
         self.temperature = 0.0
         self.fps = 0
         self.ipAddress = "192.168.0.220"
+        #self.ipAddress = "\\\\.\\COM12"
         self.operationMode = interface.RGB_DISTANCE_AMPLITUDE_MODE
         self.usedOpen3d = True
         self.start_time = time.time()
@@ -50,7 +51,8 @@ class ViewerInfo:
             self.drawframeCount = int(self.fps / elapsed)
             self.fps = 0
             self.start_time = time.time()
-            return self.fps
+            print("fps : ", self.drawframeCount, " in-Count = ", self.area_inCount)
+            return self.drawframeCount
 
 # -------------------------------------- global -------------------------------------------------#
 
@@ -138,6 +140,7 @@ def visualize_loop():
     # Open3D는 선택
     use_o3d = False
     lidar = interface.NanoLidar(viewerInfo.ipAddress)
+    lidar.set_filters(interface.FUNC_ON, interface.FUNC_ON, 300, 200, 100, 0, interface.FUNC_OFF)
     lidar.set_3d_filter(100)
     lidar.set_color_range(interface.MAX_DISTANCE_12MHZ, interface.MAX_GRAYSCALE_VALUE, interface.FUNC_ON)
     
@@ -147,7 +150,7 @@ def visualize_loop():
         pcl_cloud = None
         cloud_points = None
         cloud_colors = None
-        sphere = None
+        color_lut = None
         
         if viewerInfo.usedOpen3d:
             try:
@@ -159,26 +162,31 @@ def visualize_loop():
                 cloud_points = np.zeros((interface.NSL_LIDAR_TYPE_A_HEIGHT*interface.NSL_LIDAR_TYPE_A_WIDTH, 3), dtype=np.float32)
                 cloud_colors = np.zeros_like(cloud_points)
                 pcl_cloud = o3d.geometry.PointCloud()
-                # 초기 빈 포인트클라우드 추가
+
                 o3d_vis.get_render_option().point_size = 1.0
                 o3d_vis.add_geometry(pcl_cloud)
 
-                
+                color_lut = np.array([
+                    [lidar.get_distance_color(z).r / 255.0,
+                     lidar.get_distance_color(z).g / 255.0,
+                     lidar.get_distance_color(z).b / 255.0]
+                    for z in range(interface.NSL_LIMIT_FOR_VALID_DATA)
+                ], dtype=np.float32)
+
                 if viewerInfo.area_enable:
 
                     xmin = viewerInfo.area_left / 1000.0
                     xmax = viewerInfo.area_right / 1000.0
-                    ymin = -viewerInfo.area_top / 1000.0
-                    ymax = -viewerInfo.area_bottom / 1000.0
-                    zmin = -viewerInfo.area_start / 1000.0
-                    zmax = -viewerInfo.area_end / 1000.0
+                    ymax = -viewerInfo.area_top / 1000.0
+                    ymin = -viewerInfo.area_bottom / 1000.0
+                    zmax = -viewerInfo.area_start / 1000.0
+                    zmin = -viewerInfo.area_end / 1000.0
 
                     aabb = o3d.geometry.AxisAlignedBoundingBox(
                         min_bound=(xmin, ymin, zmin),
                         max_bound=(xmax, ymax, zmax)
                     )
 
-                    # 4) LineSet으로 변환 후 색상 지정
                     box_lines = o3d.geometry.LineSet.create_from_axis_aligned_bounding_box(aabb)
                     box_lines.paint_uniform_color([1, 0, 0])  # 빨강
                     o3d_vis.add_geometry(box_lines)
@@ -189,15 +197,21 @@ def visualize_loop():
                 use_o3d = False
                 
 
-        print("[INFO] ESC 종료, 'c' 컬러맵 토글, 'r' RGB 창 토글")
+        print("[INFO] ESC or 'q' 종료")
         first_frame = True
 
         while True:
+            # ---------- 키 처리 ----------
+            k = cv2.waitKey(1) & 0xFF
+            if k == 27 or k == ord('q') or k == ord('Q'):  # ESC, q, Q
+                break
+                
             frame = lidar.get_frame(timeout_ms=1000)
             if frame is None:
                 # 프레임 미수신 시 잠깐 대기
                 time.sleep(0.005)
                 continue
+                
             viewerInfo.temperature = frame.temperature
             # --------- 2D Distance / Amplitude ----------
             # uint8 3채널 BGR 이미지
@@ -211,67 +225,72 @@ def visualize_loop():
             
             index = 0
             viewerInfo.area_inCount = 0
-            xMin = frame.roiXMin
-            yMin = frame.roiYMin
+            xMin, yMin = frame.roiXMin, frame.roiYMin
             
-                        
-            for y in range(frame.height):
-                for x in range(frame.width):
-                    # 2D 이미지 색상
-                    col_dist  = lidar.get_distance_color(dist2d[y+yMin, x+xMin])
-                    col_amp = lidar.get_amplitude_color(amplitude[y+yMin, x+xMin])
-                    imageDistance[y+yMin, x+xMin] = [col_dist.b, col_dist.g, col_dist.r]
-                    imageAmplitude[y+yMin, x+xMin] = [col_amp.b, col_amp.g, col_amp.r]
-
-                    if use_o3d:
-                        z_val = dist3d[interface.OUT_Z, y+yMin, x+xMin]
-                                                    
-                        if z_val < interface.NSL_LIMIT_FOR_VALID_DATA:
-                            # 3D 좌표 (m 단위)
-                            cloud_points[index, interface.OUT_X] = dist3d[interface.OUT_X, y+yMin, x+xMin] / 1000.0
-                            cloud_points[index, interface.OUT_Y] = -dist3d[interface.OUT_Y, y+yMin, x+xMin] / 1000.0
-                            cloud_points[index, interface.OUT_Z] = -z_val / 1000.0
-
-                            # 색상
-                            if viewerInfo.area_enable:
-                                x_val = dist3d[interface.OUT_X, y+yMin, x+xMin]
-                                y_val = dist3d[interface.OUT_Y, y+yMin, x+xMin]
-
-                                if (viewerInfo.area_left <= x_val <= viewerInfo.area_right and
-                                    viewerInfo.area_top <= y_val <= viewerInfo.area_bottom and
-                                    viewerInfo.area_start <= z_val <= viewerInfo.area_end):
-                                    color3D = lidar.get_distance_color(int(z_val))
-                                    cloud_colors[index] = [color3D.r/255.0, color3D.g/255.0, color3D.b/255.0]
-                                    viewerInfo.area_inCount += 1
-                                else:
-                                    cloud_colors[index] = [196/255.0]*3
-                            else:
-                                color3D = lidar.get_distance_color(int(z_val))
-                                cloud_colors[index] = [color3D.r/255.0, color3D.g/255.0, color3D.b/255.0]
-                        else:
-                            cloud_points[index, interface.OUT_X] = 0
-                            cloud_points[index, interface.OUT_Y] = 0
-                            cloud_points[index, interface.OUT_Z] = 0
-                        
-                        index += 1
-
-
-            # --------- RGB ----------
             if frame.includeLidar:
+                # ROI 영역 선택
+                dist_roi = dist2d[0:interface.NSL_LIDAR_TYPE_A_HEIGHT, 0:interface.NSL_LIDAR_TYPE_A_WIDTH]
+                amp_roi = amplitude[0:interface.NSL_LIDAR_TYPE_A_HEIGHT, 0:interface.NSL_LIDAR_TYPE_A_WIDTH]
+
+                 # 2D 이미지 벡터화 처리
+                imageDistance[0:interface.NSL_LIDAR_TYPE_A_HEIGHT, 0:interface.NSL_LIDAR_TYPE_A_WIDTH] = lidar.get_distance_color_array(dist_roi)
+                imageAmplitude[0:interface.NSL_LIDAR_TYPE_A_HEIGHT, 0:interface.NSL_LIDAR_TYPE_A_WIDTH] = lidar.get_amplitude_color_array(amp_roi)
+    
                 if use_o3d:
+                    x_roi = dist3d[interface.OUT_X, 0:interface.NSL_LIDAR_TYPE_A_HEIGHT, 0:interface.NSL_LIDAR_TYPE_A_WIDTH]
+                    y_roi = dist3d[interface.OUT_Y, 0:interface.NSL_LIDAR_TYPE_A_HEIGHT, 0:interface.NSL_LIDAR_TYPE_A_WIDTH]
+                    z_roi = dist3d[interface.OUT_Z, 0:interface.NSL_LIDAR_TYPE_A_HEIGHT, 0:interface.NSL_LIDAR_TYPE_A_WIDTH]
+                    
+                    cloud_points_np = np.zeros((interface.NSL_LIDAR_TYPE_A_HEIGHT*interface.NSL_LIDAR_TYPE_A_WIDTH, 3), dtype=np.float64)
+                    cloud_colors_np = np.full((interface.NSL_LIDAR_TYPE_A_HEIGHT*interface.NSL_LIDAR_TYPE_A_WIDTH, 3), 196/255.0, dtype=np.float64)
+
+                    valid_mask = (z_roi < interface.NSL_LIMIT_FOR_VALID_DATA).flatten()
+                    valid_indices = np.flatnonzero(valid_mask)
+                    
+                    x_valid = (x_roi.flatten())[valid_mask]
+                    y_valid = (y_roi.flatten())[valid_mask]
+                    z_valid = (z_roi.flatten())[valid_mask]
+                    
+                    cloud_points_np[valid_mask, 0] = x_valid / 1000.0
+                    cloud_points_np[valid_mask, 1] = -y_valid / 1000.0
+                    cloud_points_np[valid_mask, 2] = -z_valid / 1000.0
+
+                    if viewerInfo.area_enable:
+
+                        area_mask = (
+                            (x_valid >= viewerInfo.area_left) &
+                            (x_valid <= viewerInfo.area_right) &
+                            (y_valid >= viewerInfo.area_top) &
+                            (y_valid <= viewerInfo.area_bottom) &
+                            (z_valid >= viewerInfo.area_start) &
+                            (z_valid <= viewerInfo.area_end)
+                        )
+
+                        # 영역 안 포인트 색상
+                        if np.any(area_mask):
+                            area_indices = valid_indices[area_mask]
+                            z_vals_int = np.clip(z_valid[area_mask].astype(int), 0, interface.NSL_LIMIT_FOR_VALID_DATA - 1)
+                            cloud_colors_np[area_indices, :] = color_lut[z_vals_int]
+                            viewerInfo.area_inCount = np.sum(area_mask)
+                        else:
+                            viewerInfo.area_inCount = 0
+                    else:
+                        z_vals_int = np.clip(z_valid.astype(int), 0, interface.NSL_LIMIT_FOR_VALID_DATA - 1)
+                        cloud_colors_np[valid_indices, :] = color_lut[z_vals_int]
+                    
                     if first_frame:
-                        pcl_cloud.points = o3d.utility.Vector3dVector(cloud_points[:index])
-                        pcl_cloud.colors = o3d.utility.Vector3dVector(cloud_colors[:index])
+                        pcl_cloud.points = o3d.utility.Vector3dVector(cloud_points_np)
+                        pcl_cloud.colors = o3d.utility.Vector3dVector(cloud_colors_np)
                         o3d_vis.add_geometry(pcl_cloud)
                         first_frame = False
                         o3d_vis.reset_view_point(True)
                     else:
-                        np.asarray(pcl_cloud.points)[:] = cloud_points[:index]
-                        np.asarray(pcl_cloud.colors)[:] = cloud_colors[:index]
-    
+                        np.asarray(pcl_cloud.points)[:] = cloud_points_np
+                        np.asarray(pcl_cloud.colors)[:] = cloud_colors_np
+
                     o3d_vis.update_geometry(pcl_cloud)
                     o3d_vis.poll_events()
-                    o3d_vis.update_renderer()
+                    o3d_vis.update_renderer()   
 
                 # 합쳐서 보기
                 vis2d = np.hstack([imageDistance, imageAmplitude])
@@ -288,11 +307,6 @@ def visualize_loop():
 
                 small = cv2.resize(rgb, (640, 480))
                 cv2.imshow(winName, small)
-
-            # ---------- 키 처리 ----------
-            k = cv2.waitKey(1) & 0xFF
-            if k == 27:  # ESC
-                break
                 
             viewerInfo.updateFps()
 

@@ -231,23 +231,34 @@ class NslPCD(Structure):
         ("rgb", NslVec3b * (NSL_RGB_IMAGE_HEIGHT * NSL_RGB_IMAGE_WIDTH)),
     ]
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.distance2D_np = np.ctypeslib.as_array(self.distance2D).reshape(
+            (NSL_LIDAR_TYPE_B_HEIGHT, NSL_LIDAR_TYPE_B_WIDTH)
+        )
+        self.amplitude_np = np.ctypeslib.as_array(self.amplitude).reshape(
+            (NSL_LIDAR_TYPE_B_HEIGHT, NSL_LIDAR_TYPE_B_WIDTH)
+        )
+        self.distance3D_np = np.ctypeslib.as_array(self.distance3D).reshape(
+            (MAX_OUT, NSL_LIDAR_TYPE_B_HEIGHT, NSL_LIDAR_TYPE_B_WIDTH)
+        )
+        self.rgb_np = np.ctypeslib.as_array(self.rgb).view(np.uint8).reshape(
+            (NSL_RGB_IMAGE_HEIGHT, NSL_RGB_IMAGE_WIDTH, 3)
+        )
+        
     # ---- numpy 변환 도우미 ----
     def np_distance2D(self):
-        arr = np.ctypeslib.as_array(self.distance2D)
-        return arr.reshape((NSL_LIDAR_TYPE_B_HEIGHT, NSL_LIDAR_TYPE_B_WIDTH))
+        return self.distance2D_np
         
     def np_amplitude(self):
-        arr = np.ctypeslib.as_array(self.amplitude)
-        return arr.reshape((NSL_LIDAR_TYPE_B_HEIGHT, NSL_LIDAR_TYPE_B_WIDTH))
+        return self.amplitude_np
 
     def np_distance3D(self):
-        arr = np.ctypeslib.as_array(self.distance3D)
-        return arr.reshape((MAX_OUT, NSL_LIDAR_TYPE_B_HEIGHT, NSL_LIDAR_TYPE_B_WIDTH))
+        return self.distance3D_np
 
     def np_rgb(self):
-        arr = np.ctypeslib.as_array(self.rgb)
-        arr = arr.view(np.uint8).reshape((NSL_RGB_IMAGE_HEIGHT, NSL_RGB_IMAGE_WIDTH, 3))
-        return arr
+        return self.rgb_np
 
 # Python Wrapper
 class NanoLidar:
@@ -323,11 +334,31 @@ class NanoLidar:
         if self.handle < 0:
             raise RuntimeError("nsl_open 실패")
         print(f"[NanoLidar] Opened. handle={self.handle}")
-
+        
+    def get_nsl_error(self, err_no):
+        if err_no == NSL_SUCCESS:
+            return "NSL_SUCCESS"
+        elif err_no == NSL_INVALID_HANDLE:
+            return "NSL_INVALID_HANDLE"
+        elif err_no == NSL_NOT_OPENED:
+            return "NSL_NOT_OPENED"
+        elif err_no == NSL_NOT_READY:
+            return "NSL_NOT_READY"
+        elif err_no == NSL_IP_DUPLICATED:
+            return "NSL_IP_DUPLICATED"
+        elif err_no == NSL_HANDLE_OVERFLOW:
+            return "NSL_HANDLE_OVERFLOW"
+        elif err_no == NSL_DISCONNECTED_SOCKET:
+            return "NSL_DISCONNECTED_SOCKET"
+        elif err_no == NSL_ANSWER_ERROR:
+            return "NSL_ANSWER_ERROR"
+        else:  # NSL_INVALID_PARAMETER:
+            return "NSL_INVALID_PARAMETER"
+            
     def start_stream(self, mode=DISTANCE_AMPLITUDE_MODE):
         ret = _nsl.nsl_streamingOn(self.handle, mode)
         if ret != NSL_SUCCESS:
-            raise RuntimeError(f"nsl_streamingOn 실패 (ret={ret}, mode={mode})")
+            raise RuntimeError(f"nsl_streamingOn 실패 (ret={self.get_nsl_error(ret)}, mode={mode})")
         print(f"[NanoLidar] Streaming ON (mode={mode})")
 
     def stop_stream(self):
@@ -389,6 +420,44 @@ class NanoLidar:
         
     def get_amplitude_color(self, value):
         return _nsl.nsl_getAmplitudeColor(value)
+
+    # ---------------- 벡터화 함수 ----------------
+    def get_distance_color_array(self, value_array):
+        """
+        value_array: 2D NumPy 배열 (int)
+        반환: 2D NumPy 3채널 BGR 이미지, dtype=uint8
+        """
+
+        H, W = value_array.shape
+        out = np.zeros((H, W, 3), dtype=np.uint8)
+        
+        # flatten 후 map 적용
+        flat = value_array.flatten()
+        colors = [_nsl.nsl_getDistanceColor(int(v)) for v in flat]
+
+        # RGB → NumPy 배열 변환
+        out[..., 0] = np.array([c.b for c in colors], dtype=np.uint8).reshape(H, W)  # B
+        out[..., 1] = np.array([c.g for c in colors], dtype=np.uint8).reshape(H, W)  # G
+        out[..., 2] = np.array([c.r for c in colors], dtype=np.uint8).reshape(H, W)  # R
+
+        return out
+
+    def get_amplitude_color_array(self, value_array):
+        """
+        value_array: 2D NumPy 배열 (int)
+        반환: 2D NumPy 3채널 BGR 이미지, dtype=uint8
+        """
+        H, W = value_array.shape
+        out = np.zeros((H, W, 3), dtype=np.uint8)
+        
+        flat = value_array.flatten()
+        colors = [_nsl.nsl_getAmplitudeColor(int(v)) for v in flat]
+
+        out[..., 0] = np.array([c.b for c in colors], dtype=np.uint8).reshape(H, W)
+        out[..., 1] = np.array([c.g for c in colors], dtype=np.uint8).reshape(H, W)
+        out[..., 2] = np.array([c.r for c in colors], dtype=np.uint8).reshape(H, W)
+
+        return out
         
     def close(self):
         _nsl.nsl_close()
