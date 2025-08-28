@@ -126,6 +126,7 @@ typedef struct ViewerInfo_
 		memset(&nslConfig, 0, sizeof(NslConfig));
 		nslConfig.lidarAngle = 0;
 		nslConfig.lensType = NslOption::LENS_TYPE::LENS_SF;
+		operationMode = OPERATION_MODE_OPTIONS::RGB_DISTANCE_MODE;
 		
 		//sprintf(ipAddress,"/dev/ttyNsl3140");
 		//sprintf(ipAddress,"\\\\.\\COM12");
@@ -889,12 +890,7 @@ int main(int argc, char *argv[])
 	nsl_getCurrentConfig(gtViewerInfo.handle, &gtViewerInfo.nslConfig);
 	printConfiguration();	
 
-//	nsl_streamingOn(gtViewerInfo.handle, OPERATION_MODE_OPTIONS::GRAYSCALE_MODE);
-	nsl_streamingOn(gtViewerInfo.handle, OPERATION_MODE_OPTIONS::DISTANCE_AMPLITUDE_MODE);
-//	nsl_streamingOn(gtViewerInfo.handle, OPERATION_MODE_OPTIONS::DISTANCE_GRAYSCALE_MODE);
-//	nsl_streamingOn(gtViewerInfo.handle, OPERATION_MODE_OPTIONS::DISTANCE_MODE);
-//	nsl_streamingOn(gtViewerInfo.handle, OPERATION_MODE_OPTIONS::RGB_DISTANCE_MODE);
-//	nsl_streamingOn(gtViewerInfo.handle, OPERATION_MODE_OPTIONS::RGB_DISTANCE_AMPLITUDE_MODE);
+	nsl_streamingOn(gtViewerInfo.handle, gtViewerInfo.operationMode);
 
 	while( gtViewerInfo.mainRunning != 0 )
 	{
