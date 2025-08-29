@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 """
 NanoLiDAR Python Port (ctypes + numpy + OpenCV/Open3D)
 - C API: nanolib.dll / libnanolib.so 를 ctypes로 직접 호출
@@ -31,7 +34,7 @@ class ViewerInfo:
         self.lidarAngle = 0        
         self.ipAddress = "192.168.0.220"
         #self.ipAddress = "\\\\.\\COM12"
-        self.operationMode = interface.DISTANCE_AMPLITUDE_MODE
+        self.operationMode = interface.DISTANCE_MODE
         self.usedOpen3d = True
         self.start_time = time.time()
         # ----------------------------------
@@ -53,7 +56,11 @@ class ViewerInfo:
             self.drawframeCount = int(self.fps / elapsed)
             self.fps = 0
             self.start_time = time.time()
-            print(f"fps : {self.drawframeCount} temp = {self.temperature:.2f} in-Count = {self.area_inCount}")
+            print("fps : %d temp = %.2f in-Count = %d" % (
+                self.drawframeCount,
+                self.temperature,
+                self.area_inCount
+            ))
             return self.drawframeCount
 
 # -------------------------------------- global -------------------------------------------------#
@@ -94,40 +101,40 @@ def addDistanceInfo(distMat, frame, lidarWidth, lidarHeight, scaleSize):
         # 값 해석 (간단화)
         if int(distance3D) > interface.NSL_LIMIT_FOR_VALID_DATA:
             if( int(distance3D) == interface.NSL_ADC_OVERFLOW ):
-                dist2D_caption = f"X:{xpos},Y:{ypos} ADC_OVERFLOW"
+                dist2D_caption = "X:{},Y:{} ADC_OVERFLOW".format(xpos, ypos)
             elif( int(distance3D) == interface.NSL_SATURATION ):
-                dist2D_caption = f"X:{xpos},Y:{ypos} SATURATION"
+                dist2D_caption = "X:{},Y:{} SATURATION".format(xpos, ypos)
             elif( int(distance3D) == interface.NSL_BAD_PIXEL ):
-                dist2D_caption = f"X:{xpos},Y:{ypos} BAD_PIXEL"
+                dist2D_caption = "X:{},Y:{} BAD_PIXEL".format(xpos, ypos)
             elif( int(distance3D) == interface.NSL_INTERFERENCE ):
-                dist2D_caption = f"X:{xpos},Y:{ypos} INTERFERENCE"
+                dist2D_caption = "X:{},Y:{} INTERFERENCE".format(xpos, ypos)
             elif( int(distance3D) == interface.NSL_EDGE_DETECTED ):
-                dist2D_caption = f"X:{xpos},Y:{ypos} EDGE_DETECTED"
+                dist2D_caption = "X:{},Y:{} EDGE_DETECTED".format(xpos, ypos)
             else:
-                dist2D_caption = f"X:{xpos},Y:{ypos} LOW_AMPLITUDE"
+                dist2D_caption = "X:{},Y:{} LOW_AMPLITUDE".format(xpos, ypos)
                 
             dist3D_caption = ""
         else:
             if frame.operationMode == interface.DISTANCE_AMPLITUDE_MODE or frame.operationMode == interface.RGB_DISTANCE_AMPLITUDE_MODE:
                 amp = frame.np_amplitude()[ypos][xpos]
-                dist2D_caption = f"2D X:{xpos} Y:{ypos} {distance2D}mm/{amp}lsb"
+                dist2D_caption = "2D X:{} Y:{} {}mm/{}lsb".format(xpos, ypos, distance2D, amp)
             else:
-                dist2D_caption = f"2D X:{xpos} Y:{ypos} {distance2D}mm"
+                dist2D_caption = "2D X:{} Y:{} {}mm".format(xpos, ypos, distance2D)
 
-            dist3D_caption = (
-                f"3D X:{frame.np_distance3D()[interface.OUT_X,ypos,xpos]:.1f}mm "
-                f"Y:{frame.np_distance3D()[interface.OUT_Y,ypos,xpos]:.1f}mm "
-                f"Z:{distance3D:.1f}mm"
+            dist3D_caption = "3D X:{:.1f}mm Y:{:.1f}mm Z:{:.1f}mm".format(
+                frame.np_distance3D()[interface.OUT_X, ypos, xpos],
+                frame.np_distance3D()[interface.OUT_Y, ypos, xpos],
+                distance3D
             )
+            
 
-        info_caption = f"{width}x{height} < {viewerInfo.drawframeCount}fps> {viewerInfo.temperature:.2f}'C"
+        info_caption = "{}x{} <{}fps> {:.2f}'C".format(width,height,viewerInfo.drawframeCount,viewerInfo.temperature)
 
         cv2.putText(infoImage, info_caption, (10, 23), cv2.FONT_HERSHEY_SIMPLEX, textSize, (0,0,0), 1, cv2.LINE_AA)
         cv2.putText(infoImage, dist2D_caption, (10, 46), cv2.FONT_HERSHEY_SIMPLEX, textSize, (0,0,0), 1, cv2.LINE_AA)
         cv2.putText(infoImage, dist3D_caption, (10, 70), cv2.FONT_HERSHEY_SIMPLEX, textSize, (0,0,0), 1, cv2.LINE_AA)
-
     else:
-        info_caption = f"{width}x{height} <{viewerInfo.drawframeCount}fps> {viewerInfo.temperature:.2f}'C"
+        info_caption = "{}x{} <{}fps> {:.2f}'C".format(width,height,viewerInfo.drawframeCount,viewerInfo.temperature)
         cv2.putText(infoImage, info_caption, (10, 23), cv2.FONT_HERSHEY_SIMPLEX, textSize, (0,0,0), 1, cv2.LINE_AA)
 
     distMat = np.vstack((distMat, infoImage))
@@ -189,7 +196,7 @@ def visualize_loop():
     lidar = interface.NanoLidar(viewerInfo.ipAddress, viewerInfo.lensType, viewerInfo.lidarAngle)
     lidar.set_filters(interface.FUNC_ON, interface.FUNC_ON, 300, 200, 100, 0, interface.FUNC_OFF)
     lidar.set_3d_filter(100)
-#    lidar.set_frame_rate(interface.FRAME_15FPS)
+#    lidar.set_frame_rate(interface.FRAME_30FPS)
 #    lidar.set_color_range(interface.MAX_DISTANCE_12MHZ, interface.MAX_GRAYSCALE_VALUE, interface.FUNC_OFF)
     
     color_3d_lut = np.array([
@@ -221,7 +228,7 @@ def visualize_loop():
                 break
             elif k == ord('d') or k == ord('D'):
                 draw_2d = not draw_2d
-                print("draw_2d = ", draw_2d)
+                print("draw_2d = %d" % draw_2d)
                 
             ret = lidar.get_frame(frame, timeout_ms=1000)
             if ret != interface.NSL_SUCCESS:

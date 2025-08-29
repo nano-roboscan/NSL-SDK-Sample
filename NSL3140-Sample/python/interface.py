@@ -1,35 +1,48 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 
 import os
+import sys
+import platform
 import ctypes
 from ctypes import (
     c_int, c_double, c_char_p, c_ubyte, c_bool, Structure, POINTER
 )
 import numpy as np
 
-# ----------------------------------
-# 0) 라이브러리 로드 (경로 수정)
-# ----------------------------------
-# Windows -> "nanolib.dll",  Linux -> "./libnanolib.so"
-DLL_PATHS = ["../nsl_lib/lib/linux/shared/libnanolib.so", "../nsl_lib/lib/windows/shared/nanolib.dll", "/usr/local/lib/libnanolib.so"]
-_nsl = None
-for p in DLL_PATHS:
-    if os.path.exists(p):
-        _nsl = ctypes.CDLL(p)
-        break
-if _nsl is None:
-    # 마지막 시도: 시스템 경로에서
-    try:
-        print("not found DLL_PATHS")
-        _nsl = ctypes.CDLL("nanolib.dll")
-    except Exception:
-        try:
-            print("not found windows dll")
-            _nsl = ctypes.CDLL("libnanolib.so")
-        except Exception as e:
-            raise RuntimeError(
-                "nanolib 동적라이브러리를 찾을 수 없습니다. DLL/so 경로를 수정하세요."
-            ) from e
 
+# Windows -> "nanolib.dll",  Linux -> "libnanolib.so", MAC -> "libnanolib.dylib"
+DLL_PATHS = {
+        "AARCH": "../nsl_lib/lib/aarch-7.5/shared/libnanolib.so", 
+        "Linux": "../nsl_lib/lib/linux-7.5/shared/libnanolib.so", 
+        "Windows": "../nsl_lib/lib/windows/shared/nanolib.dll", 
+        "Darwin": "../nsl_lib/lib/mac-12.0.5/shared/libnanolib.dylib"
+}
+
+# 현재 운영 체제 확인
+current_os = platform.system()
+# ARM64 아키텍처일 경우 AARCH 경로 사용
+if current_os == "Linux" and platform.machine().startswith("aarch"):
+    current_os = "AARCH"
+
+print("current_os = %s" % current_os)
+    
+dll_path = DLL_PATHS.get(current_os)
+_nsl = None
+
+print("current DLL Name : %s" % dll_path)
+
+try:
+    if dll_path:
+        if os.path.exists(dll_path):
+            _nsl = ctypes.CDLL(dll_path)
+        else:
+            sys.exit(":nanolib 동적라이브러리를 찾을 수 없습니다. dll/so 경로를 수정하세요.")
+    else:
+        print("Unsupported OS: %s" % current_os)
+except Exception:
+    sys.exit("::nanolib 동적라이브러리를 찾을 수 없습니다. dll/so 경로를 수정하세요.")
+    
 # Lidar Max Resolution
 NSL_LIDAR_TYPE_A_WIDTH  = 320
 NSL_LIDAR_TYPE_A_HEIGHT = 240
@@ -207,6 +220,15 @@ class NslVec3b(ctypes.Structure):
         ("g", c_ubyte),
         ("r", c_ubyte),
     ]
+    
+    @property
+    def __array_interface__(self):
+        return {
+            'descr': [('', np.uint8)],
+            'shape': (3,),
+            'typestr': np.dtype(np.uint8).str,
+            'data': (ctypes.addressof(self), False),
+        }
    
 # NslPCD structure in nanolib.h
 class NslPCD(Structure):
@@ -232,7 +254,7 @@ class NslPCD(Structure):
     ]
 
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+        super(NslPCD, self).__init__(*args, **kwargs)
 
         self.distance2D_np = np.ctypeslib.as_array(self.distance2D).reshape(
             (NSL_LIDAR_TYPE_B_HEIGHT, NSL_LIDAR_TYPE_B_WIDTH)
@@ -350,7 +372,7 @@ class NanoLidar:
             for z in range(NSL_EDGE_DETECTED+1)
         ], dtype=np.float32)
         
-        print(f"[NanoLidar] Opened. handle={self.handle}")
+        print("[NanoLidar] Opened. handle=%d" % self.handle)
         
     def get_nsl_error(self, err_no):
         if err_no == NSL_SUCCESS:
@@ -375,15 +397,15 @@ class NanoLidar:
     def start_stream(self, mode=DISTANCE_AMPLITUDE_MODE):
         ret = _nsl.nsl_streamingOn(self.handle, mode)
         if ret != NSL_SUCCESS:
-            raise RuntimeError(f"nsl_streamingOn 실패 (ret={self.get_nsl_error(ret)}, mode={mode})")
-        print(f"[NanoLidar] Streaming ON (mode={mode})")
+            raise RuntimeError("nsl_streamingOn 실패 (ret=%s, mode=%d)" % (self.get_nsl_error(ret), mode))
+        print("[NanoLidar] Streaming ON (mode=%d)" % mode)
 
     def stop_stream(self):
         ret = _nsl.nsl_streamingOff(self.handle)
         print("[NanoLidar] Streaming OFF")
         return ret
 
-    def get_frame(self, frame, timeout_ms=1000) -> NslPCD | None:       
+    def get_frame(self, frame, timeout_ms=1000):
         return _nsl.nsl_getPointCloudData(self.handle, ctypes.byref(frame), timeout_ms)
         
     def set_frame_rate(self, FRAME_RATE_OPTIONS):
