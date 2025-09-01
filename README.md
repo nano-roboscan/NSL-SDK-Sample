@@ -42,4 +42,4 @@ $ ./nslApp
 <img width="1033" height="863" alt="Image" src="https://github.com/user-attachments/assets/e44727e8-fb14-4700-b090-7506d2959b8f" />
 
 ## Point cloud Python
-<img width="649" height="510" alt="Image" src="https://github.com/user-attachments/assets/d11b91ac-4e96-4815-898c-a5dd9e323ee4" />
+<img width="1597" height="827" alt="Image" src="https://github.com/user-attachments/assets/5abeaada-b148-438a-a293-29c88dbeecd4" />
