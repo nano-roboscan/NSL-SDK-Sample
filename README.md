@@ -8,8 +8,8 @@ NSL2206-SDK와 NSL3140-SDK library 사용 예제 입니다.
 - PCL 라이브러리를 설치한 경우 main.cpp의 __USED_PCL_LIBLARY__ 활성화 후 사용하세요.
 
 ## Python  
-- 기본 2D 뷰어는 OpenCV를 사용하며, Point Cloud을 경우 Open3D 를 사용 합니다.
-- Open3D 미사용 시 main.py의 with_open3d를 False로 전환 후 사용 합니다.
+- 기본 2D 뷰어는 OpenCV를 사용하며, Point Cloud의 경우 Open3D 를 사용 합니다.
+- Open3D 설치 후 main.py의 with_open3d를 True로 전환 후 사용 합니다.
 
 ## USB 인식용 rules 정의
 ```
