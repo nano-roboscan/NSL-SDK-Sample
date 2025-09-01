@@ -46,7 +46,7 @@ class ViewerInfo:
         self.lidarAngle = 0        
         self.ipAddress = "192.168.0.220"
         #self.ipAddress = "\\\\.\\COM12"
-        self.operationMode = interface.RGB_DISTANCE_MODE
+        self.operationMode = interface.RGB_DISTANCE_AMPLITUDE_MODE
         # ----------------------------------
         # 3D area settings
         self.area_left               = -800
@@ -270,6 +270,7 @@ def visualize_loop():
             pcl_cloud = o3d.geometry.PointCloud()
 
             o3d_vis.get_render_option().point_size = 1.5
+            o3d_vis.get_render_option().background_color = [0, 0, 0]  # black :: RGB 값 (0~1)
             o3d_vis.add_geometry(pcl_cloud)
 
             if viewerInfo.area_enable:
@@ -300,6 +301,7 @@ def visualize_loop():
     lidar.set_filters(interface.FUNC_ON, interface.FUNC_ON, 300, 200, 100, 0, interface.FUNC_OFF)
     lidar.set_3d_filter(100)
     lidar.set_frame_rate(interface.FRAME_15FPS)
+#    lidar.set_intetration_time(300, 100, 0, 100)
 #    lidar.set_color_range(interface.MAX_DISTANCE_12MHZ, interface.MAX_GRAYSCALE_VALUE, interface.FUNC_OFF)
     
     color_3d_lut = np.array([
