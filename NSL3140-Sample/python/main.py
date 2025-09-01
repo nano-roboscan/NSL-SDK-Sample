@@ -10,35 +10,45 @@ NanoLiDAR Python Port (ctypes + numpy + OpenCV/Open3D)
 
 
 
-#import sys
+import os
 import ctypes
 from ctypes import (
     c_int, c_double, c_char_p, c_ubyte, c_bool, Structure, POINTER
 )
 import cv2
 import time
+from datetime import datetime
 import numpy as np
 import interface
 
 
-# -------------------------------------- class -------------------------------------------------#
+# -------------------------------------- class --------------------------------------------------#
 # --- viewerInfo ---
 class ViewerInfo:
     def __init__(self):
+        #-----------------------------------
+        # mouse position
         self.mouseX = -1
         self.mouseY = -1
+        #-----------------------------------
+        # view mode
+        self.start_time = time.time()
         self.drawframeCount = 0
         self.temperature = 0.0
         self.fps = 0
+        self.usedOpen3d = True
+        #-----------------------------------
+        # PCD Log        
+        self.saveLog = False;
+        #-----------------------------------
+        # lidar mode
         self.lensType = interface.LENS_SF
         self.lidarAngle = 0        
         self.ipAddress = "192.168.0.220"
         #self.ipAddress = "\\\\.\\COM12"
-        self.operationMode = interface.DISTANCE_MODE
-        self.usedOpen3d = True
-        self.start_time = time.time()
+        self.operationMode = interface.RGB_DISTANCE_MODE
         # ----------------------------------
-        # area settings
+        # 3D area settings
         self.area_left               = -800
         self.area_right              = 1500
         self.area_top                = -500
@@ -67,14 +77,107 @@ class ViewerInfo:
 
 viewerInfo = ViewerInfo()
 winName = "Python example"  
+LOG_FOLDER = "./logs"
+# -------------------------------------- function -----------------------------------------------#
+# --- save PCD Log ---
+def save_data_pcd(frame, file_path: str):
+    if not frame.includeLidar:
+        return
 
-# -------------------------------------- function -------------------------------------------------#
+    # lidar 크기 설정
+    if frame.lidarType != interface.TYPE_B:
+        lidar_width, lidar_height = interface.NSL_LIDAR_TYPE_A_WIDTH, interface.NSL_LIDAR_TYPE_A_HEIGHT
+        width, height, points = 320, 240, 76800
+    else:
+        lidar_width, lidar_height = interface.NSL_LIDAR_TYPE_B_WIDTH, interface.NSL_LIDAR_TYPE_B_HEIGHT
+        width, height, points = 800, 600, 480000
+
+    is_amplitude = frame.operationMode in (
+        interface.DISTANCE_AMPLITUDE_MODE,
+        interface.RGB_DISTANCE_AMPLITUDE_MODE,
+    )
+
+    # 파일 저장
+    with open(file_path + ".pcd", "w") as f:
+        f.write("VERSION 0.7\n")
+        f.write("FIELDS x y z intensity\n")
+        f.write("SIZE 4 4 4 4\n")
+        f.write("TYPE F F F F\n")
+        f.write("COUNT 1 1 1 1\n")
+        f.write("VIEWPOINT 0 0 0 1 0 0 0\n")
+        f.write("WIDTH %d\n" % width)
+        f.write("HEIGHT %d\n" % height)
+        f.write("POINTS %d\n" % points)
+        f.write("DATA ascii\n")
+
+        X = frame.np_distance3D()[interface.OUT_X, :lidar_height, :lidar_width]
+        Y = frame.np_distance3D()[interface.OUT_Y, :lidar_height, :lidar_width]
+        Z = frame.np_distance3D()[interface.OUT_Z, :lidar_height, :lidar_width]
+
+        if is_amplitude:
+            intensity = frame.np_amplitude()[:lidar_height, :lidar_width]
+        else:
+            intensity = Z  # fallback
+
+        mask = (Z > 0) & (Z < interface.NSL_LIMIT_FOR_VALID_DATA)
+
+        # 유효 데이터
+        valid_data = np.stack([X, Y, Z, intensity], axis=-1).reshape(-1, 4)
+        valid_data = np.where(mask.reshape(-1, 1), valid_data, np.nan)
+
+        # 문자열 변환 및 저장
+        np.savetxt(f, valid_data, fmt="%.2f %.2f %.2f %.2f")
+
+
+def save_rgb(frame, file_path: str):
+    if not frame.includeRgb:
+        return
+    # numpy array 변환
+    cv2.imwrite(file_path + ".jpg", frame.np_rgb())
+
+def save_index(file_path: str, s: str):
+    """인덱스 문자열을 파일에 append 저장"""
+    with open(file_path, "a", encoding="utf-8") as f:
+        f.write(s + "\n")
+
+def log_data(frame):
+    """PCD + RGB 저장 및 인덱스 로그 기록"""
+    now = datetime.now()
+    sec = now.second
+
+    if not hasattr(log_data, "count"):
+        log_data.count = -1
+        log_data.second = -1
+        log_data.index_file_path = ""
+
+    if sec != log_data.second:
+        log_data.count = 0
+        log_data.second = sec
+    else:
+        log_data.count += 1
+
+    suffix = "-{0:03d}".format(log_data.count)
+    timestamp = now.strftime("%Y%m%d-%H%M%S")
+
+    filename_idx = "image_%s" % timestamp
+    filename = filename_idx + suffix
+    
+    if not os.path.exists(LOG_FOLDER):
+        os.makedirs(LOG_FOLDER)
+
+    if not log_data.index_file_path:
+        log_data.index_file_path = os.path.join(LOG_FOLDER, filename_idx + ".idx")
+
+    save_data_pcd(frame, os.path.join(LOG_FOLDER, filename))
+    save_rgb(frame, os.path.join(LOG_FOLDER, filename))
+    save_index(log_data.index_file_path, filename)
+
 # --- mouseCallbackCV ---
 def mouseCallbackCV(event, x, y, flags, param):
     if event == cv2.EVENT_LBUTTONUP:
         viewerInfo.mouseX = x
         viewerInfo.mouseY = y
-
+        
 # --- addDistanceInfo ---
 def addDistanceInfo(distMat, frame, lidarWidth, lidarHeight, scaleSize):
     height, width = frame.height, frame.width
@@ -166,7 +269,7 @@ def visualize_loop():
             cloud_colors = np.zeros_like(cloud_points)
             pcl_cloud = o3d.geometry.PointCloud()
 
-            o3d_vis.get_render_option().point_size = 1.0
+            o3d_vis.get_render_option().point_size = 1.5
             o3d_vis.add_geometry(pcl_cloud)
 
             if viewerInfo.area_enable:
@@ -196,7 +299,7 @@ def visualize_loop():
     lidar = interface.NanoLidar(viewerInfo.ipAddress, viewerInfo.lensType, viewerInfo.lidarAngle)
     lidar.set_filters(interface.FUNC_ON, interface.FUNC_ON, 300, 200, 100, 0, interface.FUNC_OFF)
     lidar.set_3d_filter(100)
-#    lidar.set_frame_rate(interface.FRAME_30FPS)
+    lidar.set_frame_rate(interface.FRAME_15FPS)
 #    lidar.set_color_range(interface.MAX_DISTANCE_12MHZ, interface.MAX_GRAYSCALE_VALUE, interface.FUNC_OFF)
     
     color_3d_lut = np.array([
@@ -260,7 +363,7 @@ def visualize_loop():
                     vis2d = np.hstack([imageDistance, imageAmplitude])
                     if frame.includeRgb:
                         rgb = frame.np_rgb()
-                        small = cv2.resize(rgb, (640, 240))
+                        small = cv2.resize(rgb, (640, 480))
                         vis2d = np.vstack([vis2d, small])
                         
                     vis2d = addDistanceInfo(vis2d, frame, 320, 240, 1)
@@ -331,6 +434,9 @@ def visualize_loop():
                 cv2.imshow(winName, small)
                 
             viewerInfo.updateFps()
+
+            if viewerInfo.saveLog:
+                log_data(frame)
 
     finally:
         try:
