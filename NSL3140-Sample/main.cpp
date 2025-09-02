@@ -208,7 +208,7 @@ void drawPointCloud()
 	pcl::PointCloud<pcl::PointXYZRGB>::Ptr point_cloud_ptr = gtViewerInfo.clouds[0];
 
 	if( gtViewerInfo.area_enable ){
-		viewer->updateText("Detection : " + std::to_string(gtViewerInfo.area_inCount), 1070, 50, "point-cnt");
+		viewer->updateText("Detection : " + std::to_string(gtViewerInfo.area_inCount), 30, 50, "point-cnt");
 	}
 
 	if( !viewer->wasStopped() && point_cloud_ptr->points.size() > 0 ){
@@ -549,7 +549,7 @@ Mat addDistanceInfo(Mat distMat, NslPCD *ptNslPCD, int lidarWidth, int lidarHeig
  * 
  * @return void 
  */
-void setMatrixColor(Mat image, int x, int y, NslVec3b color)
+inline void setMatrixColor(Mat image, int x, int y, NslVec3b color)
 {
 	image.at<Vec3b>(y,x)[0] = color.b;
 	image.at<Vec3b>(y,x)[1] = color.g;
@@ -831,10 +831,10 @@ int main(int argc, char *argv[])
 	vtkCamera* camera = renderer->GetActiveCamera();
 	camera->SetClippingRange(0.01, 50.0);  // 1cm ~ 50m
 
-	viewer->addText("NANOSYSTEMS, PointCloud Sample !!!", 1070, 30, "nsl-pcl");
+	viewer->addText("NANOSYSTEMS, PointCloud Sample !!!", 30, 30, "nsl-pcl");
 
 	if( gtViewerInfo.area_enable ){
-		viewer->addText("Detection : ", 1070, 50, "point-cnt");
+		viewer->addText("Detection : ", 30, 50, "point-cnt");
 		viewer->addCube(gtViewerInfo.area_left/1000.0f, gtViewerInfo.area_right/1000.0f, gtViewerInfo.area_top/1000.0f, gtViewerInfo.area_bottom/1000.0f, gtViewerInfo.area_start, gtViewerInfo.area_end/1000.0f, 1.0, 1.0, 1.0, "area_box");
 		viewer->setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_REPRESENTATION,
 											pcl::visualization::PCL_VISUALIZER_REPRESENTATION_WIREFRAME,

@@ -373,32 +373,177 @@ class NanoLidar:
         ], dtype=np.float32)
         
         print("[NanoLidar] Opened. handle=%d" % self.handle)
+    
+    # ---------------------- toString 계열 ----------------------
+    def toString_FUNCTION_OPTIONS(self, c):
+        mapping = {
+            FUNC_OFF: "FUNC_OFF",
+            FUNC_ON: "FUNC_ON",
+        }
+        return mapping.get(c, "Unknown->FUNC_ON")
+
+    def toString_HDR_OPTIONS(self, c):
+        mapping = {
+            HDR_NONE_MODE: "HDR_NONE_MODE",
+            HDR_SPATIAL_MODE: "HDR_SPATIAL_MODE",
+            HDR_TEMPORAL_MODE: "HDR_TEMPORAL_MODE",
+        }
+        return mapping.get(c, "Unknown->HDR_NONE_MODE")
+
+    def toString_UDP_SPEED_OPTIONS(self, c):
+        mapping = {
+            NET_100Mbps: "NET_100Mbps",
+            NET_1000Mbps: "NET_1000Mbps",
+        }
+        return mapping.get(c, "Unknown->NET_1000Mbps")
+
+    def toString_DUALBEAM_MOD_OPTIONS(self, c):
+        mapping = {
+            DB_OFF: "DB_OFF",
+            DB_6MHZ: "DB_6MHZ",
+            DB_3MHZ: "DB_3MHZ",
+        }
+        return mapping.get(c, "Unknown->DB_3MHZ")
+
+    def toString_DUALBEAM_OPERATION_OPTIONS(self, c):
+        mapping = {
+            DB_AVOIDANCE: "DB_AVOIDANCE",
+            DB_CORRECTION: "DB_CORRECTION",
+            DB_FULL_CORRECTION: "DB_FULL_CORRECTION",
+        }
+        return mapping.get(c, "Unknown->DB_AVOIDANCE")
+
+    def toString_MODULATION_OPTIONS(self, c):
+        mapping = {
+            MOD_12Mhz: "MOD_12Mhz",
+            MOD_24Mhz: "MOD_24Mhz",
+            MOD_6Mhz: "MOD_6Mhz",
+            MOD_3Mhz: "MOD_3Mhz",
+        }
+        return mapping.get(c, "Unknown->MOD_12Mhz")
+
+    def toString_MODULATION_CH_OPTIONS(self, c):
+        mapping = dict((i, "MOD_CH{0}".format(i)) for i in range(16))
+        return mapping.get(c, "Unknown->MOD_CH0")
+
+    def toString_FRAME_RATE_OPTIONS(self, c):
+        mapping = {
+            FRAME_5FPS: "FRAME_5FPS",
+            FRAME_10FPS: "FRAME_10FPS",
+            FRAME_15FPS: "FRAME_15FPS",
+            FRAME_20FPS: "FRAME_20FPS",
+            FRAME_25FPS: "FRAME_25FPS",
+            FRAME_30FPS: "FRAME_30FPS",
+        }
+        return mapping.get(c, "Unknown->FRAME_15FPS")
+
+    def toString_LIDAR_TYPE_OPTIONS(self, c):
+        mapping = {
+            TYPE_A: "TYPE_A",
+            TYPE_B: "TYPE_B",
+        }
+        return mapping.get(c, "Unknown")
+
+    def toString_OPERATION_MODE_OPTIONS(self, c):
+        mapping = {
+            NONE_MODE: "NONE_MODE",
+            DISTANCE_MODE: "DISTANCE_MODE",
+            GRAYSCALE_MODE: "GRAYSCALE_MODE",
+            DISTANCE_AMPLITUDE_MODE: "DISTANCE_AMPLITUDE_MODE",
+            DISTANCE_GRAYSCALE_MODE: "DISTANCE_GRAYSCALE_MODE",
+            RGB_MODE: "RGB_MODE",
+            RGB_DISTANCE_MODE: "RGB_DISTANCE_MODE",
+            RGB_DISTANCE_AMPLITUDE_MODE: "RGB_DISTANCE_AMPLITUDE_MODE",
+            RGB_DISTANCE_GRAYSCALE_MODE: "RGB_DISTANCE_GRAYSCALE_MODE",
+        }
+        return mapping.get(c, "Unknown->DISTANCE_AMPLITUDE_MODE")
+
+    def toString_NSL_ERROR_TYPE(self, c):
+        mapping = {
+            NSL_SUCCESS: "NSL_SUCCESS",
+            NSL_INVALID_HANDLE: "NSL_INVALID_HANDLE",
+            NSL_NOT_OPENED: "NSL_NOT_OPENED",
+            NSL_NOT_READY: "NSL_NOT_READY",
+            NSL_IP_DUPLICATED: "NSL_IP_DUPLICATED",
+            NSL_HANDLE_OVERFLOW: "NSL_HANDLE_OVERFLOW",
+            NSL_DISCONNECTED_SOCKET: "NSL_DISCONNECTED_SOCKET",
+            NSL_ANSWER_ERROR: "NSL_ANSWER_ERROR",
+            NSL_INVALID_PARAMETER: "NSL_INVALID_PARAMETER",
+        }
+        return mapping.get(c, "Unknown")
         
-    def get_nsl_error(self, err_no):
-        if err_no == NSL_SUCCESS:
-            return "NSL_SUCCESS"
-        elif err_no == NSL_INVALID_HANDLE:
-            return "NSL_INVALID_HANDLE"
-        elif err_no == NSL_NOT_OPENED:
-            return "NSL_NOT_OPENED"
-        elif err_no == NSL_NOT_READY:
-            return "NSL_NOT_READY"
-        elif err_no == NSL_IP_DUPLICATED:
-            return "NSL_IP_DUPLICATED"
-        elif err_no == NSL_HANDLE_OVERFLOW:
-            return "NSL_HANDLE_OVERFLOW"
-        elif err_no == NSL_DISCONNECTED_SOCKET:
-            return "NSL_DISCONNECTED_SOCKET"
-        elif err_no == NSL_ANSWER_ERROR:
-            return "NSL_ANSWER_ERROR"
-        else:  # NSL_INVALID_PARAMETER:
-            return "NSL_INVALID_PARAMETER"
+    def printConfiguration(self):
+        cfg = self.cfg
+        print("------------------------------------------------------------------------")
+        print("------------------------- Device configuration -------------------------")
+        print("------------------------------------------------------------------------")
+
+        firmware_major = (cfg.firmware_release >> 16) & 0xFFFF
+        firmware_minor = cfg.firmware_release & 0xFFFF
+        print("firmware version = {0}.{1}".format(firmware_major, firmware_minor))
+
+        print("waferID = {0}".format(cfg.waferID))
+        print("chipID = {0}".format(cfg.chipID))
+        print("UDP RX port = {0}".format(cfg.udpDataPort))
+
+        print("HDR = {0}".format(self.toString_HDR_OPTIONS(cfg.hdrOpt)))
+
+        print("int time = {0}.{1}.{2}.{3}".format(
+            cfg.integrationTime3D,
+            cfg.integrationTime3DHdr1,
+            cfg.integrationTime3DHdr2,
+            cfg.integrationTimeGrayScale))
+
+        print("roi = {0},{1},{2},{3}".format(
+            cfg.roiXMin, cfg.roiYMin, cfg.roiXMax, cfg.roiYMax))
+
+        print("Modulation = {0}, ch = {1}, autoChannel = {2}".format(
+            self.toString_MODULATION_OPTIONS(cfg.mod_frequencyOpt),
+            self.toString_MODULATION_CH_OPTIONS(cfg.mod_channelOpt),
+            self.toString_FUNCTION_OPTIONS(cfg.mod_enabledAutoChannelOpt)))
+
+        print("dual beam = {0}, option = {1}".format(
+            self.toString_DUALBEAM_MOD_OPTIONS(cfg.dbModOpt),
+            self.toString_DUALBEAM_OPERATION_OPTIONS(cfg.dbOpsOpt)))
+
+        print("Binning vertical = {0}, horizontal = {1}".format(
+            self.toString_FUNCTION_OPTIONS(cfg.ver_binningOpt),
+            self.toString_FUNCTION_OPTIONS(cfg.horiz_binningOpt)))
+
+        print("adc overflow = {0}, saturation = {1}".format(
+            self.toString_FUNCTION_OPTIONS(cfg.overflowOpt),
+            self.toString_FUNCTION_OPTIONS(cfg.saturationOpt)))
+
+        print("Compensation drnu = {0}, temperature = {1}, grayscale = {2}, ambient = {3}".format(
+            self.toString_FUNCTION_OPTIONS(cfg.drnuOpt),
+            self.toString_FUNCTION_OPTIONS(cfg.temperatureOpt),
+            self.toString_FUNCTION_OPTIONS(cfg.grayscaleOpt),
+            self.toString_FUNCTION_OPTIONS(cfg.ambientlightOpt)))
+
+        print("filter median = {0}, gauss = {1}, temporal factor = {2}, "
+              "temporal threshold = {3}, edge threshold = {4}, "
+              "interferenceLimit = {5}, used interference Last value = {6}".format(
+                  self.toString_FUNCTION_OPTIONS(cfg.medianOpt),
+                  self.toString_FUNCTION_OPTIONS(cfg.gaussOpt),
+                  cfg.temporalFactorValue,
+                  cfg.temporalThresholdValue,
+                  cfg.edgeThresholdValue,
+                  cfg.interferenceDetectionLimitValue,
+                  self.toString_FUNCTION_OPTIONS(cfg.interferenceDetectionLastValueOpt)))
+
+        print("UDP speed = {0}".format(self.toString_UDP_SPEED_OPTIONS(cfg.udpSpeedOpt)))
+        print("frame rate = {0}".format(self.toString_FRAME_RATE_OPTIONS(cfg.frameRateOpt)))
+        print("------------------------------------------------------------------------")
+
+    def get_nsl_config(self):
+        return self.cfg
             
     def start_stream(self, mode=DISTANCE_AMPLITUDE_MODE):
+        #if( mode 
         ret = _nsl.nsl_streamingOn(self.handle, mode)
         if ret != NSL_SUCCESS:
-            raise RuntimeError("nsl_streamingOn 실패 (ret=%s, mode=%d)" % (self.get_nsl_error(ret), mode))
-        print("[NanoLidar] Streaming ON (mode=%d)" % mode)
+            raise RuntimeError("nsl_streamingOn 실패 (mode={0}) ret = {1}".format(self.toString_OPERATION_MODE_OPTIONS(mode), self.toString_NSL_ERROR_TYPE(ret)))
+        print("[NanoLidar] Streaming ON (mode={0}) ret = {1}".format(self.toString_OPERATION_MODE_OPTIONS(mode), self.toString_NSL_ERROR_TYPE(ret)))
 
     def stop_stream(self):
         ret = _nsl.nsl_streamingOff(self.handle)

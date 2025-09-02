@@ -46,7 +46,7 @@ class ViewerInfo:
         self.lidarAngle = 0        
         self.ipAddress = "192.168.0.220"
         #self.ipAddress = "\\\\.\\COM12"
-        self.operationMode = interface.RGB_DISTANCE_AMPLITUDE_MODE
+        self.operationMode = interface.RGB_DISTANCE_MODE
         # ----------------------------------
         # 3D area settings
         self.area_left               = -800
@@ -251,12 +251,7 @@ def visualize_loop():
 
     # Open3D는 선택
     use_o3d = False
-    o3d_vis = None
-    pcl_cloud = None
-    cloud_points = None
-    cloud_colors = None
-    color_lut = None
-    
+   
     if viewerInfo.usedOpen3d:
         try:
             import open3d as o3d
@@ -303,6 +298,7 @@ def visualize_loop():
     lidar.set_frame_rate(interface.FRAME_15FPS)
 #    lidar.set_intetration_time(300, 100, 0, 100)
 #    lidar.set_color_range(interface.MAX_DISTANCE_12MHZ, interface.MAX_GRAYSCALE_VALUE, interface.FUNC_OFF)
+    lidar.printConfiguration();
     
     color_3d_lut = np.array([
         [lidar.get_distance_color(z).r / 255.0,
@@ -311,7 +307,7 @@ def visualize_loop():
         for z in range(interface.NSL_LIMIT_FOR_VALID_DATA)
     ], dtype=np.float32)
     
-    try:
+    try:        
         lidar.start_stream(viewerInfo.operationMode)
 
         print("[INFO] ESC or 'q' 종료")
@@ -365,10 +361,15 @@ def visualize_loop():
                     vis2d = np.hstack([imageDistance, imageAmplitude])
                     if frame.includeRgb:
                         rgb = frame.np_rgb()
-                        small = cv2.resize(rgb, (640, 480))
+                        #target_w, target_h = 640, 480
+                        #h, w = rgb.shape[:2]
+                        #scale = min(target_w / w, target_h / h)
+                        #new_w = int(w * scale)
+                        #new_h = int(h * scale)                        
+                        small = cv2.resize(rgb, (640, 360))
                         vis2d = np.vstack([vis2d, small])
                         
-                    vis2d = addDistanceInfo(vis2d, frame, 320, 240, 1)
+                    vis2d = addDistanceInfo(vis2d, frame, interface.NSL_LIDAR_TYPE_A_WIDTH, interface.NSL_LIDAR_TYPE_A_HEIGHT, 1)
                     cv2.imshow(winName, vis2d)
     
                 
@@ -392,7 +393,6 @@ def visualize_loop():
                     cloud_points_np[valid_mask, 2] = -z_valid / 1000.0
 
                     if viewerInfo.area_enable:
-
                         area_mask = (
                             (x_valid >= viewerInfo.area_left) &
                             (x_valid <= viewerInfo.area_right) &
@@ -431,8 +431,12 @@ def visualize_loop():
 
             elif frame.includeRgb:
                 rgb = frame.np_rgb()
-
-                small = cv2.resize(rgb, (640, 480))
+                #target_w, target_h = 640, 480
+                #h, w = rgb.shape[:2]
+                #scale = min(target_w / w, target_h / h)
+                #new_w = int(w * scale)
+                #new_h = int(h * scale)                        
+                small = cv2.resize(rgb, (640, 360))
                 cv2.imshow(winName, small)
                 
             viewerInfo.updateFps()
