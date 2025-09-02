@@ -39,11 +39,7 @@ $ ./nslApp
 ```
 
 ## Point cloud C++
-```
 <img width="1033" height="863" alt="Image" src="https://github.com/user-attachments/assets/e44727e8-fb14-4700-b090-7506d2959b8f" />
-```
 
 ## Point cloud Python
-```
 <img width="1382" height="705" alt="Image" src="https://github.com/user-attachments/assets/f80ac57e-bfe1-4826-b302-235f6119376a" />
-```
