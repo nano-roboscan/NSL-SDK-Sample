@@ -10,9 +10,44 @@ include_directories(${OpenCV_INCLUDE_DIRS})
 
 
 find_path(NSL_LIB_INCLUDE_DIR NAMES nanolib.h PATHS nsl_lib/include REQUIRED)
-find_library(NSL_LIB_PATH NAMES nanolib PATHS nsl_lib/lib/linux-7.5/shared REQUIRED)
-#find_library(NSL_LIB_PATH NAMES nanolib PATHS nsl_lib/lib/aarch-7.5/shared REQUIRED)
-#find_library(NSL_LIB_PATH NAMES nanolib PATHS nsl_lib/lib/windows/shared REQUIRED)
+# OS별 라이브러리 경로 자동 선택
+if(WIN32)
+    message(STATUS "Target OS: Windows")
+    find_library(NSL_LIB_PATH
+        NAMES nanolib
+        PATHS ${CMAKE_CURRENT_SOURCE_DIR}/nsl_lib/lib/windows/shared
+        REQUIRED
+    )
+
+elseif(APPLE)
+    message(STATUS "Target OS: macOS")
+    find_library(NSL_LIB_PATH
+        NAMES nanolib
+        PATHS ${CMAKE_CURRENT_SOURCE_DIR}/nsl_lib/lib/mac-12.0.5/shared
+        REQUIRED
+    )
+
+elseif(UNIX)
+    # 리눅스 (x86/aarch 구분 필요 시 CMAKE_SYSTEM_PROCESSOR 사용)
+    if(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|arm64")
+        message(STATUS "Target OS: Linux (aarch64|arm64)")
+        find_library(NSL_LIB_PATH
+            NAMES nanolib
+            PATHS ${CMAKE_CURRENT_SOURCE_DIR}/nsl_lib/lib/aarch-7.5/shared
+            REQUIRED
+        )
+    else()
+        message(STATUS "Target OS: Linux (x86_64)")
+        find_library(NSL_LIB_PATH
+            NAMES nanolib
+            PATHS ${CMAKE_CURRENT_SOURCE_DIR}/nsl_lib/lib/linux-7.5/shared
+            REQUIRED
+        )
+    endif()
+
+else()
+    message(FATAL_ERROR "Unsupported platform")
+endif()
 
 add_compile_options(-Wno-deprecated-declarations)
 

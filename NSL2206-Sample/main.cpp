@@ -84,8 +84,7 @@ typedef struct ViewerInfo_
 
 
 VIEWER_INFO	gtViewerInfo;
-std::vector<std::unique_ptr<NslPCD>> backupFrame;
-std::mutex backupFrameMutex;
+std::unique_ptr<NslPCD> latestFrame = std::make_unique<NslPCD>();;
 
 /////////////////////////////////// draw function /////////////////////////////////////////////////////
 #ifdef _WINDOWS
@@ -380,7 +379,6 @@ void processPointCloud(NslPCD *ptNslPCD)
 	gtViewerInfo.clouds[0]->height = height;
 	gtViewerInfo.clouds[0]->points.resize(width*height);
 #endif
-	gtViewerInfo.frameCount++;
 	gtViewerInfo.temperature = ptNslPCD->temperature;
 	gtViewerInfo.operationMode = ptNslPCD->operationMode;
 	gtViewerInfo.width = ptNslPCD->width;
@@ -448,33 +446,17 @@ void processPointCloud(NslPCD *ptNslPCD)
 }
 
 
-void nslQueueThread(int void_data)
+bool CaptureData()
 {
-	std::unique_ptr<NslPCD> frame = std::make_unique<NslPCD>();
-	NSL_ERROR_TYPE ret;
-
-	printf("start nslQueueThread()\n");
-	
-	while( gtViewerInfo.mainRunning != 0 )
-	{	
-		if( (ret = nsl_getPointCloudData(gtViewerInfo.handle, frame.get())) == NSL_ERROR_TYPE::NSL_SUCCESS )
-		{
-			// lock_guard is valid only until this block
-			{
-				std::lock_guard<std::mutex> lock(backupFrameMutex);
-				backupFrame.push_back(std::move(frame));
-			}
-			
-			frame = std::make_unique<NslPCD>(); 
-		}
-
-
-		timeDelay(1);
+	if( nsl_getPointCloudData(gtViewerInfo.handle, latestFrame.get()) == NSL_ERROR_TYPE::NSL_SUCCESS )
+	{
+		gtViewerInfo.frameCount++;
+		return true;
 	}
 
-	
-	printf("end nslQueueThread()\n");
+	return false;
 }
+
 
 //////////////////////////////////// main function /////////////////////////////////////////////
 
@@ -557,27 +539,17 @@ int main()
 	nsl_getCurrentConfig(gtViewerInfo.handle, &gtViewerInfo.nslConfig);
 	printConfiguration();	
 #endif
+	nsl_setFilter(gtViewerInfo.handle, FUNCTION_OPTIONS::FUNC_ON, FUNCTION_OPTIONS::FUNC_ON, 300, 200, 200, 0, FUNCTION_OPTIONS::FUNC_OFF);
+	nsl_getCurrentConfig(gtViewerInfo.handle, &gtViewerInfo.nslConfig);
+	printConfiguration();	
 
-// 	nsl_streamingOn(gtViewerInfo.handle, OPERATION_MODE_OPTIONS::DISTANCE_AMPLITUDE_MODE);
-	nsl_streamingOn(gtViewerInfo.handle, OPERATION_MODE_OPTIONS::DISTANCE_MODE);
-
-	thread queueThread = thread(nslQueueThread, 0);
-	std::unique_ptr<NslPCD> frameToProcess;
+ 	nsl_streamingOn(gtViewerInfo.handle, OPERATION_MODE_OPTIONS::DISTANCE_AMPLITUDE_MODE);
+//	nsl_streamingOn(gtViewerInfo.handle, OPERATION_MODE_OPTIONS::DISTANCE_MODE);
 
 	while( gtViewerInfo.mainRunning != 0 )
 	{
-		std::unique_ptr<NslPCD> frameToProcess;
-		// lock_guard is valid only until this block
-		{
-			std::lock_guard<std::mutex> lock(backupFrameMutex);
-			if (!backupFrame.empty()) {
-				frameToProcess = std::move(backupFrame.front());
-				backupFrame.erase(backupFrame.begin());
-			}
-		}
-		
-		if (frameToProcess) {
-			processPointCloud(frameToProcess.get());
+		if( CaptureData() ){
+			processPointCloud(latestFrame.get());
 		}
 
 		int key = waitKey(1);
@@ -598,7 +570,6 @@ int main()
 	nsl_close();
 
 	if (timeThread.joinable())	timeThread.join();
-	if (queueThread.joinable()) queueThread.join();
 	
 	cv::destroyAllWindows();
     printf("end sample main\n");
