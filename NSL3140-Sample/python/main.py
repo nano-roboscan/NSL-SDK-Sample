@@ -15,6 +15,8 @@ import ctypes
 from ctypes import (
     c_int, c_double, c_char_p, c_ubyte, c_bool, Structure, POINTER
 )
+
+import serial.tools.list_ports
 import cv2
 import time
 from datetime import datetime
@@ -46,7 +48,7 @@ class ViewerInfo:
         self.lidarAngle = 0        
         self.ipAddress = "192.168.0.220"
         #self.ipAddress = "\\\\.\\COM12"
-        self.operationMode = interface.RGB_DISTANCE_MODE
+        self.operationMode = interface.RGB_DISTANCE_AMPLITUDE_MODE
         # ----------------------------------
         # 3D area settings
         self.area_left               = -800
@@ -57,7 +59,22 @@ class ViewerInfo:
         self.area_end                = 3000
         self.area_inCount            = 0
         self.area_enable             = True
-        
+
+        if interface.current_os == "Windows":
+            self.devName = self.find_ports_by_vid_pid("1FC9", "0094")
+            if self.devName != None:
+                self.ipAddress = self.devName            
+    
+    def find_ports_by_vid_pid(self, vid, pid):
+        vid = int(vid, 16)
+        pid = int(pid, 16)
+        ports = serial.tools.list_ports.comports()
+        for port in ports:
+            if port.vid == vid and port.pid == pid:
+                return "\\\\.\\" + port.device
+        return None
+    
+    
     def updateFps(self):
         self.fps += 1
         elapsed = time.time() - self.start_time
@@ -296,6 +313,9 @@ def visualize_loop():
     lidar.set_filters(interface.FUNC_ON, interface.FUNC_ON, 300, 200, 100, 0, interface.FUNC_OFF)
     lidar.set_3d_filter(100)
     lidar.set_frame_rate(interface.FRAME_15FPS)
+    lidar.set_modulation(interface.MOD_12Mhz, interface.MOD_CH0, interface.FUNC_OFF)
+    lidar.set_intetration_time(1000, 50, 0, 100)
+    lidar.set_hdr_mode(interface.HDR_NONE_MODE) #HDR_TEMPORAL_MODE, HDR_SPATIAL_MODE, HDR_NONE_MODE
 #    lidar.set_intetration_time(300, 100, 0, 100)
 #    lidar.set_color_range(interface.MAX_DISTANCE_12MHZ, interface.MAX_GRAYSCALE_VALUE, interface.FUNC_OFF)
     lidar.printConfiguration();

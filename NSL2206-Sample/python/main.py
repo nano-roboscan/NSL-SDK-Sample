@@ -58,7 +58,10 @@ class ViewerInfo:
         self.area_inCount            = 0
         self.area_enable             = True
         
-        self.devName = self.find_ports_by_vid_pid("0483", "5740")
+        if interface.current_os == "Windows":
+            self.devName = self.find_ports_by_vid_pid("0483", "5740")
+        else:
+            self.devName = "/dev/ttyNsl2206"
         
     def find_ports_by_vid_pid(self, vid, pid):
         vid = int(vid, 16)
@@ -66,7 +69,7 @@ class ViewerInfo:
         ports = serial.tools.list_ports.comports()
         for port in ports:
             if port.vid == vid and port.pid == pid:
-                return port.device
+                return "\\\\.\\" + port.device
         return None
     
     def updateFps(self):
