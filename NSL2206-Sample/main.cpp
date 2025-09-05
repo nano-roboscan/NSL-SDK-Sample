@@ -540,6 +540,7 @@ int main()
 	printConfiguration();	
 #endif
 	nsl_setFilter(gtViewerInfo.handle, FUNCTION_OPTIONS::FUNC_ON, FUNCTION_OPTIONS::FUNC_ON, 300, 200, 200, 0, FUNCTION_OPTIONS::FUNC_OFF);
+	nsl_set3DFilter(gtViewerInfo.handle, 100);
 	nsl_getCurrentConfig(gtViewerInfo.handle, &gtViewerInfo.nslConfig);
 	printConfiguration();	
 
