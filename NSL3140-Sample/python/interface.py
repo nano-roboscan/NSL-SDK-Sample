@@ -307,6 +307,9 @@ class NanoLidar:
         _nsl.nsl_setUdpSpeed.argtypes = [c_int, c_int]
         _nsl.nsl_setUdpSpeed.restype  = c_int
 
+        _nsl.nsl_setAdcOverflowSaturation.argtypes = [c_int, c_int, c_int]
+        _nsl.nsl_setAdcOverflowSaturation.restype  = c_int
+
         _nsl.nsl_setMinAmplitude.argtypes = [c_int, c_int]
         _nsl.nsl_setMinAmplitude.restype  = c_int
 
@@ -558,6 +561,9 @@ class NanoLidar:
 
     def set_udp_speed(self, UDP_SPEED_OPTIONS):
         return _nsl.nsl_setUdpSpeed(self.handle, UDP_SPEED_OPTIONS) 
+        
+    def set_adcOverflow(self, FUNCTION_OPTIONS_overflow, FUNCTION_OPTIONS_saturation):
+        return _nsl.nsl_setAdcOverflowSaturation(self.handle, FUNCTION_OPTIONS_overflow, FUNCTION_OPTIONS_saturation) 
 
     def set_minimum_amplitude(self, amplitude):
         return _nsl.nsl_setMinAmplitude(self.handle, amplitude) 
