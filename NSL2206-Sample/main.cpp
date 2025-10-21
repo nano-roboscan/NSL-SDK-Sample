@@ -448,7 +448,7 @@ void processPointCloud(NslPCD *ptNslPCD)
 
 bool CaptureData()
 {
-	if( nsl_getPointCloudData(gtViewerInfo.handle, latestFrame.get()) == NSL_ERROR_TYPE::NSL_SUCCESS )
+	if( nsl_getPointCloudData(gtViewerInfo.handle, latestFrame.get(), 0) == NSL_ERROR_TYPE::NSL_SUCCESS )
 	{
 		gtViewerInfo.frameCount++;
 		return true;
