@@ -126,7 +126,7 @@ typedef struct ViewerInfo_
 		memset(&nslConfig, 0, sizeof(NslConfig));
 		nslConfig.lidarAngle = 0;
 		nslConfig.lensType = NslOption::LENS_TYPE::LENS_SF;
-		operationMode = OPERATION_MODE_OPTIONS::RGB_DISTANCE_MODE;
+		operationMode = OPERATION_MODE_OPTIONS::DISTANCE_AMPLITUDE_MODE;
 		
 		//sprintf(ipAddress,"/dev/ttyNsl3140");
 		//sprintf(ipAddress,"\\\\.\\COM12");
@@ -642,9 +642,9 @@ void processPointCloud(NslPCD *ptNslPCD)
 				if( ptNslPCD->distance3D[OUT_Z][y+yMin][x+xMin] < NSL_LIMIT_FOR_VALID_DATA ){
 					pcl::PointXYZRGB &point = gtViewerInfo.clouds[0]->points[index];
 
-					point.x = (double)(ptNslPCD->distance3D[OUT_X][y+yMin][x+xMin]/1000);
-					point.y = (double)(ptNslPCD->distance3D[OUT_Y][y+yMin][x+xMin]/1000);
-					point.z = (double)(ptNslPCD->distance3D[OUT_Z][y+yMin][x+xMin]/1000);
+					point.x = ptNslPCD->distance3D[OUT_X][y+yMin][x+xMin]/1000.0;
+					point.y = ptNslPCD->distance3D[OUT_Y][y+yMin][x+xMin]/1000.0;
+					point.z = ptNslPCD->distance3D[OUT_Z][y+yMin][x+xMin]/1000.0;
 
 					if( gtViewerInfo.area_enable )
 					{
@@ -759,7 +759,7 @@ void processPointCloud(NslPCD *ptNslPCD)
 
 bool CaptureData()
 {
-	if( nsl_getPointCloudData(gtViewerInfo.handle, latestFrame.get()) == NSL_ERROR_TYPE::NSL_SUCCESS )
+	if( nsl_getPointCloudData(gtViewerInfo.handle, latestFrame.get(), 1000) == NSL_ERROR_TYPE::NSL_SUCCESS )
 	{
 		gtViewerInfo.frameCount++;
 		return true;
@@ -882,11 +882,12 @@ int main(int argc, char *argv[])
 	nsl_setModulation(gtViewerInfo.handle, MODULATION_OPTIONS::MOD_12Mhz, MODULATION_CH_OPTIONS::MOD_CH0, FUNCTION_OPTIONS::FUNC_OFF);
 	nsl_setFrameRate(gtViewerInfo.handle, FRAME_RATE_OPTIONS::FRAME_15FPS);
 	nsl_setColorRange(13000, MAX_GRAYSCALE_VALUE, NslOption::FUNCTION_OPTIONS::FUNC_ON);
-	nsl_setIntegrationTime(gtViewerInfo.handle, 500, 100, 0, 100);
+	nsl_setIntegrationTime(gtViewerInfo.handle, 1000, 100, 0, 100);
 	nsl_setFilter(gtViewerInfo.handle, FUNCTION_OPTIONS::FUNC_ON, FUNCTION_OPTIONS::FUNC_ON, 300, 100, 100, 0, FUNCTION_OPTIONS::FUNC_OFF);
 	nsl_set3DFilter(gtViewerInfo.handle, 100);
 //	nsl_setFilter(gtViewerInfo.handle, FUNCTION_OPTIONS::FUNC_OFF, FUNCTION_OPTIONS::FUNC_OFF, 0, 0, 0, 0, FUNCTION_OPTIONS::FUNC_OFF);
 //	nsl_set3DFilter(gtViewerInfo.handle, 0);
+	nsl_setRoi(gtViewerInfo.handle, 0, 0, 799, 599);
 	nsl_getCurrentConfig(gtViewerInfo.handle, &gtViewerInfo.nslConfig);
 	printConfiguration();	
 

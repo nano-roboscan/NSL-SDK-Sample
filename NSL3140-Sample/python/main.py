@@ -45,7 +45,7 @@ class ViewerInfo:
         #-----------------------------------
         # lidar mode
         self.lensType = interface.LENS_SF
-        self.lidarAngle = 0        
+        self.lidarAngle = 0
         self.ipAddress = "192.168.0.220"
         #self.ipAddress = "\\\\.\\COM12"
         self.operationMode = interface.RGB_DISTANCE_AMPLITUDE_MODE
@@ -310,12 +310,13 @@ def visualize_loop():
             
     
     lidar = interface.NanoLidar(viewerInfo.ipAddress, viewerInfo.lensType, viewerInfo.lidarAngle)
-    lidar.set_filters(interface.FUNC_ON, interface.FUNC_ON, 300, 200, 100, 0, interface.FUNC_OFF)
+#    lidar.set_filters(interface.FUNC_ON, interface.FUNC_ON, 300, 200, 100, 0, interface.FUNC_OFF)
+    lidar.set_filters(interface.FUNC_OFF, interface.FUNC_OFF, 0, 0, 0, 0, interface.FUNC_OFF)
     lidar.set_3d_filter(100)
     lidar.set_frame_rate(interface.FRAME_15FPS)
     lidar.set_modulation(interface.MOD_12Mhz, interface.MOD_CH0, interface.FUNC_OFF)
     lidar.set_intetration_time(1000, 50, 0, 100)
-    lidar.set_hdr_mode(interface.HDR_NONE_MODE) #HDR_TEMPORAL_MODE, HDR_SPATIAL_MODE, HDR_NONE_MODE
+#    lidar.set_hdr_mode(interface.HDR_NONE_MODE) #HDR_TEMPORAL_MODE, HDR_SPATIAL_MODE, HDR_NONE_MODE
 #    lidar.set_intetration_time(300, 100, 0, 100)
 #    lidar.set_color_range(interface.MAX_DISTANCE_12MHZ, interface.MAX_GRAYSCALE_VALUE, interface.FUNC_OFF)
     lidar.printConfiguration();
