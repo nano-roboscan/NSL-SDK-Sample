@@ -887,7 +887,7 @@ int main(int argc, char *argv[])
 	nsl_set3DFilter(gtViewerInfo.handle, 100);
 //	nsl_setFilter(gtViewerInfo.handle, FUNCTION_OPTIONS::FUNC_OFF, FUNCTION_OPTIONS::FUNC_OFF, 0, 0, 0, 0, FUNCTION_OPTIONS::FUNC_OFF);
 //	nsl_set3DFilter(gtViewerInfo.handle, 0);
-	nsl_setRoi(gtViewerInfo.handle, 0, 0, 799, 599);
+	nsl_setRoi(gtViewerInfo.handle, 0, 0, 319, 239);
 	nsl_getCurrentConfig(gtViewerInfo.handle, &gtViewerInfo.nslConfig);
 	printConfiguration();	
 
