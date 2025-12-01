@@ -883,10 +883,11 @@ int main(int argc, char *argv[])
 	nsl_setFrameRate(gtViewerInfo.handle, FRAME_RATE_OPTIONS::FRAME_15FPS);
 	nsl_setColorRange(13000, MAX_GRAYSCALE_VALUE, NslOption::FUNCTION_OPTIONS::FUNC_ON);
 	nsl_setIntegrationTime(gtViewerInfo.handle, 1000, 100, 0, 100);
-	nsl_setFilter(gtViewerInfo.handle, FUNCTION_OPTIONS::FUNC_ON, FUNCTION_OPTIONS::FUNC_ON, 300, 100, 100, 0, FUNCTION_OPTIONS::FUNC_OFF);
+	nsl_setFilter(gtViewerInfo.handle, FUNCTION_OPTIONS::FUNC_ON, FUNCTION_OPTIONS::FUNC_ON, 300, 200, 0, 0, FUNCTION_OPTIONS::FUNC_OFF);
 	nsl_set3DFilter(gtViewerInfo.handle, 100);
 //	nsl_setFilter(gtViewerInfo.handle, FUNCTION_OPTIONS::FUNC_OFF, FUNCTION_OPTIONS::FUNC_OFF, 0, 0, 0, 0, FUNCTION_OPTIONS::FUNC_OFF);
 //	nsl_set3DFilter(gtViewerInfo.handle, 0);
+	nsl_setHdrMode(gtViewerInfo.handle, HDR_OPTIONS::HDR_NONE_MODE);
 	nsl_setRoi(gtViewerInfo.handle, 0, 0, 319, 239);
 	nsl_getCurrentConfig(gtViewerInfo.handle, &gtViewerInfo.nslConfig);
 	printConfiguration();	
