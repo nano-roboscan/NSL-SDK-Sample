@@ -438,7 +438,7 @@ void processPointCloud(NslPCD *ptNslPCD)
 		drawPointCloud(imageDistance);
 #endif
 		namedWindow(distanceViewName, WINDOW_NORMAL);
-		resizeWindow(distanceViewName, cv::Size( distanceWidth, distanceHeight ));
+		resizeWindow(distanceViewName, distanceWidth, distanceHeight );
 		imshow(distanceViewName, imageDistance);
 		setMouseCallback(distanceViewName, mouseCallbackCV);
 	}
@@ -495,7 +495,7 @@ int main()
 	pcl::visualization::PCLVisualizer::Ptr viewer(new pcl::visualization::PCLVisualizer("NSL PCL 3D <" + to_string(0) + ">"));
 	viewer->getRenderWindow()->SetWindowName("NSL PCL 3D Viewer");
 	viewer->addPointCloud<pcl::PointXYZRGB>(cloud, "Viewer pointCloud");
-	viewer->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 1, "Viewer pointCloud");
+	viewer->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 2, "Viewer pointCloud");
 	viewer->addCoordinateSystem(1.0);
 	viewer->setBackgroundColor(0, 0, 0);
 	viewer->initCameraParameters();
@@ -525,14 +525,12 @@ int main()
 		exit(0);
 	}
 
-	printConfiguration();
 #if 0 // option example
 	nsl_setModulation(gtViewerInfo.handle, MODULATION_OPTIONS::MOD_10Mhz, MODULATION_CH_OPTIONS::MOD_CH0);
 	nsl_setFrameRate(gtViewerInfo.handle, FRAME_RATE_OPTIONS::FRAME_10FPS);
 	nsl_setIntegrationTime(gtViewerInfo.handle, 1000, 400, 50, 100, 100);
 	nsl_setHdrMode(gtViewerInfo.handle, HDR_OPTIONS::HDR_NONE_MODE);
 	nsl_setFilter(gtViewerInfo.handle, FUNCTION_OPTIONS::FUNC_OFF, FUNCTION_OPTIONS::FUNC_OFF, 300, 200, 300, 400, FUNCTION_OPTIONS::FUNC_OFF);
-	nsl_setRoi(gtViewerInfo.handle, 0, 0, 159, 59);
 
 	nsl_saveConfiguration(gtViewerInfo.handle);
 
