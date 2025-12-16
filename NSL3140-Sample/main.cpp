@@ -54,7 +54,7 @@ using namespace cv;
 using namespace std;
 using namespace NslOption;
 
-#define DISTANCE_INFO_HEIGHT	80
+#define DISTANCE_INFO_HEIGHT	120
 #define VIEWER_SCALE_SIZE		2
 #define DRAW_POINT_CLOUD	0x01
 #define DRAW_OPENCV_VIEW	0x02
@@ -62,21 +62,21 @@ using namespace NslOption;
 typedef struct ViewerInfo_
 {
 	// for management
-	int 	drawView;
-	int 	mainRunning;
+	int 		drawView;
+	int 		mainRunning;
 	int		mouseX;
 	int		mouseY;
-	int 	frameCount;
-	int 	drawframeCount;
+	int 		frameCount;
+	int 		drawframeCount;
 	char 	ipAddress[20];
 	double	temperature;
-	int 	handle;
-	int 	width;
+	int 		handle;
+	int 		width;
 	int		height;
-	int 	xMin;
-	int 	xMax;
+	int 		xMin;
+	int 		xMax;
 	int		yMin;
-	int 	yMax;
+	int 		yMax;
 	bool	startLog;
 	OPERATION_MODE_OPTIONS 	operationMode;
 
@@ -92,6 +92,10 @@ typedef struct ViewerInfo_
 	float area_start;
 	float area_end;
 	int area_inCount;
+
+	// Auto Integration time ROI
+	NslROI autoIntRoi;	// x_start, x_end :: 0 ~ 319, y_start, y_end :: 0 ~ 239
+	FUNCTION_OPTIONS	autoIntRoiEnable;
 
 	// for PCL
 #ifdef __USED_PCL_LIBLARY__
@@ -123,6 +127,12 @@ typedef struct ViewerInfo_
 		temperature = 0;
 		handle = -1;
 
+		autoIntRoi.x_start = 40;
+		autoIntRoi.y_start = 70;
+		autoIntRoi.x_end = 279;
+		autoIntRoi.y_end = 169;
+		autoIntRoiEnable = FUNCTION_OPTIONS::FUNC_OFF;
+
 		memset(&nslConfig, 0, sizeof(NslConfig));
 		nslConfig.lidarAngle = 0;
 		nslConfig.lensType = NslOption::LENS_TYPE::LENS_SF;
@@ -137,7 +147,7 @@ typedef struct ViewerInfo_
 
 
 VIEWER_INFO	gtViewerInfo;
-std::unique_ptr<NslPCD> latestFrame = std::make_unique<NslPCD>();;
+std::unique_ptr<NslPCD> latestFrame = std::make_unique<NslPCD>();
 
 /////////////////////////////////// draw function /////////////////////////////////////////////////////
 #ifdef _WINDOWS
@@ -477,6 +487,27 @@ Mat addDistanceInfo(Mat distMat, NslPCD *ptNslPCD, int lidarWidth, int lidarHeig
 	int yMin = ptNslPCD->roiYMin;
 	int xpos = viewer_xpos/scaleSize;
 	int ypos = viewer_ypos/scaleSize;
+	string int_caption;
+
+	if( gtViewerInfo.autoIntRoiEnable == FUNCTION_OPTIONS::FUNC_ON ){
+		int x1 = gtViewerInfo.autoIntRoi.x_start * scaleSize;
+		int y1 = gtViewerInfo.autoIntRoi.y_start * scaleSize;
+		int x2 = gtViewerInfo.autoIntRoi.x_end * scaleSize;
+		int y2 = gtViewerInfo.autoIntRoi.y_end * scaleSize;
+
+		rectangle(distMat, Point(x1, y1), Point(x2, y2), Scalar(0, 255, 0), 2);
+
+		FUNCTION_OPTIONS	isEnable;
+		int currentIntTime0;
+		int currentOverflowCnt;
+
+		nsl_getAutoIntegrationTime(gtViewerInfo.handle, &isEnable, &currentIntTime0, &currentOverflowCnt);
+
+		int_caption = format("Int <%d, %d, %d, %d>, Overflow %d", currentIntTime0, gtViewerInfo.nslConfig.integrationTime3DHdr1, gtViewerInfo.nslConfig.integrationTime3DHdr2, gtViewerInfo.nslConfig.integrationTimeGrayScale, currentOverflowCnt);
+	}
+	else{
+		int_caption = format("Int <%d, %d, %d, %d>", gtViewerInfo.nslConfig.integrationTime3D, gtViewerInfo.nslConfig.integrationTime3DHdr1, gtViewerInfo.nslConfig.integrationTime3DHdr2, gtViewerInfo.nslConfig.integrationTimeGrayScale);
+	}
 	
 	if( (ypos >= yMin && ypos < lidarHeight)){
 
@@ -524,8 +555,9 @@ Mat addDistanceInfo(Mat distMat, NslPCD *ptNslPCD, int lidarWidth, int lidarHeig
 		info_caption = format("%s:%dx%d <%dfps> %.2f'C", getDataTypeName(ptNslPCD->operationMode), width, height, gtViewerInfo.drawframeCount, gtViewerInfo.temperature);
 
 		putText(infoImage, info_caption.c_str(), Point(10, 23), FONT_HERSHEY_SIMPLEX, textSize, Scalar(0, 0, 0), 1, cv::LINE_AA);
-		putText(infoImage, dist2D_caption.c_str(), Point(10, 46), FONT_HERSHEY_SIMPLEX, textSize, Scalar(0, 0, 0), 1, cv::LINE_AA);
-		putText(infoImage, dist3D_caption.c_str(), Point(10, 70), FONT_HERSHEY_SIMPLEX, textSize, Scalar(0, 0, 0), 1, cv::LINE_AA);
+		putText(infoImage, int_caption.c_str(), Point(10, 46), FONT_HERSHEY_SIMPLEX, textSize, Scalar(0, 0, 0), 1, cv::LINE_AA);		
+		putText(infoImage, dist2D_caption.c_str(), Point(10, 70), FONT_HERSHEY_SIMPLEX, textSize, Scalar(0, 0, 0), 1, cv::LINE_AA);
+		putText(infoImage, dist3D_caption.c_str(), Point(10, 95), FONT_HERSHEY_SIMPLEX, textSize, Scalar(0, 0, 0), 1, cv::LINE_AA);
 		vconcat(distMat, infoImage, distMat);
 	}
 	else{
@@ -533,6 +565,8 @@ Mat addDistanceInfo(Mat distMat, NslPCD *ptNslPCD, int lidarWidth, int lidarHeig
 
 		string info_caption = format("%s:%dx%d <%dfps> %.2f'C", getDataTypeName(ptNslPCD->operationMode), width, height, gtViewerInfo.drawframeCount, gtViewerInfo.temperature);
 		putText(infoImage, info_caption.c_str(), Point(10, 23), FONT_HERSHEY_SIMPLEX, textSize, Scalar(0, 0, 0), 1, cv::LINE_AA);		
+		putText(infoImage, int_caption.c_str(), Point(10, 46), FONT_HERSHEY_SIMPLEX, textSize, Scalar(0, 0, 0), 1, cv::LINE_AA);			
+
 		vconcat(distMat, infoImage, distMat);
 	}
 
@@ -883,12 +917,13 @@ int main(int argc, char *argv[])
 	nsl_setFrameRate(gtViewerInfo.handle, FRAME_RATE_OPTIONS::FRAME_15FPS);
 	nsl_setColorRange(13000, MAX_GRAYSCALE_VALUE, NslOption::FUNCTION_OPTIONS::FUNC_ON);
 	nsl_setIntegrationTime(gtViewerInfo.handle, 1000, 100, 0, 100);
-	nsl_setFilter(gtViewerInfo.handle, FUNCTION_OPTIONS::FUNC_ON, FUNCTION_OPTIONS::FUNC_ON, 300, 200, 0, 0, FUNCTION_OPTIONS::FUNC_OFF);
+	nsl_setFilter(gtViewerInfo.handle, FUNCTION_OPTIONS::FUNC_ON, FUNCTION_OPTIONS::FUNC_ON, 300, 100, 0, 0, FUNCTION_OPTIONS::FUNC_OFF);
 	nsl_set3DFilter(gtViewerInfo.handle, 100);
 //	nsl_setFilter(gtViewerInfo.handle, FUNCTION_OPTIONS::FUNC_OFF, FUNCTION_OPTIONS::FUNC_OFF, 0, 0, 0, 0, FUNCTION_OPTIONS::FUNC_OFF);
 //	nsl_set3DFilter(gtViewerInfo.handle, 0);
-	nsl_setHdrMode(gtViewerInfo.handle, HDR_OPTIONS::HDR_NONE_MODE);
 	nsl_setRoi(gtViewerInfo.handle, 0, 0, 319, 239);
+	nsl_setAutoIntegrationTime(gtViewerInfo.handle, &gtViewerInfo.autoIntRoi, gtViewerInfo.autoIntRoiEnable);
+	
 	nsl_getCurrentConfig(gtViewerInfo.handle, &gtViewerInfo.nslConfig);
 	printConfiguration();	
 

@@ -6,7 +6,7 @@ import sys
 import platform
 import ctypes
 from ctypes import (
-    c_int, c_double, c_char_p, c_ubyte, c_bool, Structure, POINTER
+    c_int, c_double, c_char_p, c_ubyte, c_bool, Structure, POINTER, byref
 )
 import numpy as np
 
@@ -103,6 +103,7 @@ MOD_12Mhz   = 0
 MOD_24Mhz   = 1
 MOD_6Mhz    = 2
 MOD_3Mhz    = 3
+MOD_1p5MHz  = 4
 
 # MODULATION_CH_OPTIONS
 MOD_CH0 = 0
@@ -212,7 +213,15 @@ class NslConfig(ctypes.Structure):
         ("frameRateOpt", ctypes.c_int),
         ("grayscaleIlluminationOpt", ctypes.c_int),
     ]
-
+    
+class NslROI(ctypes.Structure):
+    _fields_ = [
+        ("x_start", c_int),
+        ("y_start", c_int),
+        ("x_end", c_int),
+        ("y_end", c_int)
+    ]
+    
 # NslVec3b structure in nanolib.h
 class NslVec3b(ctypes.Structure):
     _fields_ = [
@@ -286,8 +295,8 @@ class NslPCD(Structure):
 class NanoLidar:
     def __init__(self, ip="192.168.0.220", lens_type = LENS_SF, lidar_angle = 0.0, debug=FUNC_ON):
                 
-        _nsl.nsl_open.argtypes  = [c_char_p, ctypes.POINTER(NslConfig), c_int]
-        _nsl.nsl_open.restype   = ctypes.c_int   # handle 반환
+        _nsl.nsl_open.argtypes  = [c_char_p, POINTER(NslConfig), c_int]
+        _nsl.nsl_open.restype   = c_int   # handle 반환
 
         _nsl.nsl_close.argtypes = []
         _nsl.nsl_close.restype  = c_int
@@ -298,7 +307,7 @@ class NanoLidar:
         _nsl.nsl_streamingOff.argtypes = [c_int]
         _nsl.nsl_streamingOff.restype  = c_int
 
-        _nsl.nsl_getPointCloudData.argtypes = [c_int, ctypes.POINTER(NslPCD), c_int]
+        _nsl.nsl_getPointCloudData.argtypes = [c_int, POINTER(NslPCD), c_int]
         _nsl.nsl_getPointCloudData.restype  = c_int
         
         _nsl.nsl_setFrameRate.argtypes = [c_int, c_int]
@@ -351,13 +360,22 @@ class NanoLidar:
 
         _nsl.nsl_getAmplitudeColor.argtypes = [c_int]
         _nsl.nsl_getAmplitudeColor.restype  = NslVec3b
+        
+        _nsl.nsl_setAutoIntegrationTime.argtypes = [c_int, POINTER(NslROI), c_int]
+        _nsl.nsl_setAutoIntegrationTime.restype  = c_int
 
+        _nsl.nsl_getAutoIntegrationTime.argtypes = [c_int, POINTER(c_int), POINTER(c_int), POINTER(c_int)]
+        _nsl.nsl_getAutoIntegrationTime.restype  = c_int
+
+        _nsl.nsl_getCurrentConfig.argtypes = [c_int, POINTER(NslConfig)]
+        _nsl.nsl_getCurrentConfig.restype  = c_int
+        
         self.cfg = NslConfig()
         self.cfg.lensType = lens_type     #필수 인자
         self.cfg.lidarAngle = lidar_angle #필수 인자
-        self.handle = _nsl.nsl_open(ip.encode("utf-8"), ctypes.byref(self.cfg), debug)
+        self.handle = _nsl.nsl_open(ip.encode("utf-8"), byref(self.cfg), debug)
         if self.handle < 0:
-            raise RuntimeError("nsl_open 실패")
+            raise RuntimeError("nsl_open 실패: ip = {}".format(ip))
 
         _nsl.nsl_setColorRange(MAX_DISTANCE_12MHZ, MAX_GRAYSCALE_VALUE, FUNC_ON)
 
@@ -422,6 +440,7 @@ class NanoLidar:
             MOD_24Mhz: "MOD_24Mhz",
             MOD_6Mhz: "MOD_6Mhz",
             MOD_3Mhz: "MOD_3Mhz",
+            MOD_1p5MHz: "MOD_1.5Mhz",
         }
         return mapping.get(c, "Unknown->MOD_12Mhz")
 
@@ -476,66 +495,68 @@ class NanoLidar:
         return mapping.get(c, "Unknown")
         
     def printConfiguration(self):
-        cfg = self.cfg
+        ret = _nsl.nsl_getCurrentConfig(self.handle, byref(self.cfg))
         print("------------------------------------------------------------------------")
         print("------------------------- Device configuration -------------------------")
         print("------------------------------------------------------------------------")
 
-        firmware_major = (cfg.firmware_release >> 16) & 0xFFFF
-        firmware_minor = cfg.firmware_release & 0xFFFF
+        firmware_major = (self.cfg.firmware_release >> 16) & 0xFFFF
+        firmware_minor = self.cfg.firmware_release & 0xFFFF
         print("firmware version = {0}.{1}".format(firmware_major, firmware_minor))
 
-        print("waferID = {0}".format(cfg.waferID))
-        print("chipID = {0}".format(cfg.chipID))
-        print("UDP RX port = {0}".format(cfg.udpDataPort))
+        print("waferID = {0}".format(self.cfg.waferID))
+        print("chipID = {0}".format(self.cfg.chipID))
+        print("UDP RX port = {0}".format(self.cfg.udpDataPort))
 
-        print("HDR = {0}".format(self.toString_HDR_OPTIONS(cfg.hdrOpt)))
+        print("HDR = {0}".format(self.toString_HDR_OPTIONS(self.cfg.hdrOpt)))
 
         print("int time = {0}.{1}.{2}.{3}".format(
-            cfg.integrationTime3D,
-            cfg.integrationTime3DHdr1,
-            cfg.integrationTime3DHdr2,
-            cfg.integrationTimeGrayScale))
+            self.cfg.integrationTime3D,
+            self.cfg.integrationTime3DHdr1,
+            self.cfg.integrationTime3DHdr2,
+            self.cfg.integrationTimeGrayScale))
+            
+        print("minimum amplitude = {0}".format(self.cfg.minAmplitude))
 
         print("roi = {0},{1},{2},{3}".format(
-            cfg.roiXMin, cfg.roiYMin, cfg.roiXMax, cfg.roiYMax))
+            self.cfg.roiXMin, self.cfg.roiYMin, self.cfg.roiXMax, self.cfg.roiYMax))
 
         print("Modulation = {0}, ch = {1}, autoChannel = {2}".format(
-            self.toString_MODULATION_OPTIONS(cfg.mod_frequencyOpt),
-            self.toString_MODULATION_CH_OPTIONS(cfg.mod_channelOpt),
-            self.toString_FUNCTION_OPTIONS(cfg.mod_enabledAutoChannelOpt)))
+            self.toString_MODULATION_OPTIONS(self.cfg.mod_frequencyOpt),
+            self.toString_MODULATION_CH_OPTIONS(self.cfg.mod_channelOpt),
+            self.toString_FUNCTION_OPTIONS(self.cfg.mod_enabledAutoChannelOpt)))
 
         print("dual beam = {0}, option = {1}".format(
-            self.toString_DUALBEAM_MOD_OPTIONS(cfg.dbModOpt),
-            self.toString_DUALBEAM_OPERATION_OPTIONS(cfg.dbOpsOpt)))
+            self.toString_DUALBEAM_MOD_OPTIONS(self.cfg.dbModOpt),
+            self.toString_DUALBEAM_OPERATION_OPTIONS(self.cfg.dbOpsOpt)))
 
         print("Binning vertical = {0}, horizontal = {1}".format(
-            self.toString_FUNCTION_OPTIONS(cfg.ver_binningOpt),
-            self.toString_FUNCTION_OPTIONS(cfg.horiz_binningOpt)))
+            self.toString_FUNCTION_OPTIONS(self.cfg.ver_binningOpt),
+            self.toString_FUNCTION_OPTIONS(self.cfg.horiz_binningOpt)))
 
         print("adc overflow = {0}, saturation = {1}".format(
-            self.toString_FUNCTION_OPTIONS(cfg.overflowOpt),
-            self.toString_FUNCTION_OPTIONS(cfg.saturationOpt)))
+            self.toString_FUNCTION_OPTIONS(self.cfg.overflowOpt),
+            self.toString_FUNCTION_OPTIONS(self.cfg.saturationOpt)))
 
         print("Compensation drnu = {0}, temperature = {1}, grayscale = {2}, ambient = {3}".format(
-            self.toString_FUNCTION_OPTIONS(cfg.drnuOpt),
-            self.toString_FUNCTION_OPTIONS(cfg.temperatureOpt),
-            self.toString_FUNCTION_OPTIONS(cfg.grayscaleOpt),
-            self.toString_FUNCTION_OPTIONS(cfg.ambientlightOpt)))
+            self.toString_FUNCTION_OPTIONS(self.cfg.drnuOpt),
+            self.toString_FUNCTION_OPTIONS(self.cfg.temperatureOpt),
+            self.toString_FUNCTION_OPTIONS(self.cfg.grayscaleOpt),
+            self.toString_FUNCTION_OPTIONS(self.cfg.ambientlightOpt)))
 
         print("filter median = {0}, gauss = {1}, temporal factor = {2}, "
               "temporal threshold = {3}, edge threshold = {4}, "
               "interferenceLimit = {5}, used interference Last value = {6}".format(
-                  self.toString_FUNCTION_OPTIONS(cfg.medianOpt),
-                  self.toString_FUNCTION_OPTIONS(cfg.gaussOpt),
-                  cfg.temporalFactorValue,
-                  cfg.temporalThresholdValue,
-                  cfg.edgeThresholdValue,
-                  cfg.interferenceDetectionLimitValue,
-                  self.toString_FUNCTION_OPTIONS(cfg.interferenceDetectionLastValueOpt)))
+                  self.toString_FUNCTION_OPTIONS(self.cfg.medianOpt),
+                  self.toString_FUNCTION_OPTIONS(self.cfg.gaussOpt),
+                  self.cfg.temporalFactorValue,
+                  self.cfg.temporalThresholdValue,
+                  self.cfg.edgeThresholdValue,
+                  self.cfg.interferenceDetectionLimitValue,
+                  self.toString_FUNCTION_OPTIONS(self.cfg.interferenceDetectionLastValueOpt)))
 
-        print("UDP speed = {0}".format(self.toString_UDP_SPEED_OPTIONS(cfg.udpSpeedOpt)))
-        print("frame rate = {0}".format(self.toString_FRAME_RATE_OPTIONS(cfg.frameRateOpt)))
+        print("UDP speed = {0}".format(self.toString_UDP_SPEED_OPTIONS(self.cfg.udpSpeedOpt)))
+        print("frame rate = {0}".format(self.toString_FRAME_RATE_OPTIONS(self.cfg.frameRateOpt)))
         print("------------------------------------------------------------------------")
 
     def get_nsl_config(self):
@@ -554,7 +575,7 @@ class NanoLidar:
         return ret
 
     def get_frame(self, frame, timeout_ms=1000):
-        return _nsl.nsl_getPointCloudData(self.handle, ctypes.byref(frame), timeout_ms)
+        return _nsl.nsl_getPointCloudData(self.handle, byref(frame), timeout_ms)
         
     def set_frame_rate(self, FRAME_RATE_OPTIONS):
         return _nsl.nsl_setFrameRate(self.handle, FRAME_RATE_OPTIONS) 
@@ -571,6 +592,12 @@ class NanoLidar:
     def set_intetration_time(self, intTime, intTimeHdr1, intTimeHdr2, intTimeGray):
         return _nsl.nsl_setIntegrationTime(self.handle, intTime, intTimeHdr1, intTimeHdr2, intTimeGray) 
 
+    def set_auto_integration_time(self, roi, FUNCTION_OPTIONS_onoff):
+        return _nsl.nsl_setAutoIntegrationTime(self.handle, byref(roi), FUNCTION_OPTIONS_onoff)
+    
+    def get_auto_integration_time(self, onoff, currentIntTime, overflowCnt):
+        return _nsl.nsl_getAutoIntegrationTime(self.handle, byref(onoff), byref(currentIntTime), byref(overflowCnt))
+     
     def set_hdr_mode(self, HDR_OPTIONS):
         return _nsl.nsl_setHdrMode(self.handle, HDR_OPTIONS) 
 
@@ -591,7 +618,7 @@ class NanoLidar:
 
     def set_roi(self, minX, minY, maxX, maxY):
         return _nsl.nsl_setRoi(self.handle, minX, minY, maxX, maxY)
-        
+                
     def set_conrrection(self, FUNCTION_OPTIONS_drnu, FUNCTION_OPTIONS_temperature, FUNCTION_OPTIONS_grayscale, FUNCTION_OPTIONS_ambient):
         return _nsl.nsl_setCorrection(self.handle, FUNCTION_OPTIONS_drnu, FUNCTION_OPTIONS_temperature, FUNCTION_OPTIONS_grayscale, FUNCTION_OPTIONS_ambient)
 
@@ -620,21 +647,22 @@ class NanoLidar:
         value_array: 2D NumPy 배열 (int)
         반환: 2D NumPy 3채널 BGR 이미지, dtype=uint8
         """
-
+        value_array = np.asarray(value_array).copy()
         clipped = np.clip(value_array, 0, NSL_EDGE_DETECTED)
         colors = (self.dist_color_lut[clipped] * 255).astype(np.uint8)   # (H, W, 3)
         out = colors[..., ::-1]
-        return out
+        return np.ascontiguousarray(out)
 
     def get_amplitude_color_array(self, value_array):
         """
         value_array: 2D NumPy 배열 (int)
         반환: 2D NumPy 3채널 BGR 이미지, dtype=uint8
         """
+        value_array = np.asarray(value_array).copy()
         clipped = np.clip(value_array, 0, NSL_EDGE_DETECTED)
         colors = (self.ampl_color_lut[clipped] * 255).astype(np.uint8)   # (H, W, 3)
         out = colors[..., ::-1]
-        return out
+        return np.ascontiguousarray(out)
         
     def close(self):
         _nsl.nsl_close()

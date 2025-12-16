@@ -45,20 +45,29 @@ class ViewerInfo:
         #-----------------------------------
         # lidar mode
         self.lensType = interface.LENS_SF
-        self.lidarAngle = 0
+        self.lidarAngle = 0        
         self.ipAddress = "192.168.0.220"
         #self.ipAddress = "\\\\.\\COM12"
-        self.operationMode = interface.RGB_DISTANCE_AMPLITUDE_MODE
+        self.operationMode = interface.DISTANCE_AMPLITUDE_MODE
         # ----------------------------------
         # 3D area settings
         self.area_left               = -800
         self.area_right              = 1500
         self.area_top                = -500
-        self.area_bottom             = 500
+        self.area_bottom             = 1500
         self.area_start              = 0
-        self.area_end                = 3000
+        self.area_end                = 5000
         self.area_inCount            = 0
         self.area_enable             = True
+        
+        #--------------------------------------
+        # Auto integration Time
+        self.autoIntRoiEnable = interface.FUNC_OFF
+        self.autoIntRoi = interface.NslROI()
+        self.autoIntRoi.x_start = 40
+        self.autoIntRoi.y_start = 70
+        self.autoIntRoi.x_end = 279
+        self.autoIntRoi.y_end = 169
 
         if interface.current_os == "Windows":
             self.devName = self.find_ports_by_vid_pid("1FC9", "0094")
@@ -68,8 +77,13 @@ class ViewerInfo:
     def find_ports_by_vid_pid(self, vid, pid):
         vid = int(vid, 16)
         pid = int(pid, 16)
+        
         ports = serial.tools.list_ports.comports()
+        
+        print("find_ports_by_vid_pid = %s" % ports)
+        
         for port in ports:
+            print("find vid , pid = %s" % (port.device))
             if port.vid == vid and port.pid == pid:
                 return "\\\\.\\" + port.device
         return None
@@ -205,7 +219,25 @@ def addDistanceInfo(distMat, frame, lidarWidth, lidarHeight, scaleSize):
     xpos = viewer_xpos // scaleSize if viewer_xpos >= 0 else -1
     ypos = viewer_ypos // scaleSize if viewer_ypos >= 0 else -1
 
-    infoImage = np.full((80, distMat.shape[1], 3), 255, dtype=np.uint8)
+    int_caption = ""
+
+    if viewerInfo.autoIntRoiEnable == interface.FUNC_ON:
+        x1 = viewerInfo.autoIntRoi.x_start * scaleSize;
+        y1 = viewerInfo.autoIntRoi.y_start * scaleSize;
+        x2 = viewerInfo.autoIntRoi.x_end * scaleSize;
+        y2 = viewerInfo.autoIntRoi.y_end * scaleSize;
+        
+        onoff = interface.c_int()
+        currentTime = interface.c_int()
+        overflowCnt = interface.c_int()
+
+        cv2.rectangle(distMat, (x1, y1), (x2, y2), (0, 255, 0), 2)
+        lidar.get_auto_integration_time(onoff, currentTime, overflowCnt);
+        int_caption = "Int <{}, {}, {}, {}>, Overflow {}".format(currentTime.value, lidar.get_nsl_config().integrationTime3DHdr1, lidar.get_nsl_config().integrationTime3DHdr2, lidar.get_nsl_config().integrationTimeGrayScale, overflowCnt.value) 
+    else:
+        int_caption = "Int <{}, {}, {}, {}>".format(lidar.get_nsl_config().integrationTime3D, lidar.get_nsl_config().integrationTime3DHdr1, lidar.get_nsl_config().integrationTime3DHdr2, lidar.get_nsl_config().integrationTimeGrayScale) 
+
+    infoImage = np.full((125, distMat.shape[1], 3), 255, dtype=np.uint8)
 
     if ypos >= yMin and ypos < lidarHeight and xpos >= 0:
         # 십자선 표시
@@ -237,9 +269,9 @@ def addDistanceInfo(distMat, frame, lidarWidth, lidarHeight, scaleSize):
         else:
             if frame.operationMode == interface.DISTANCE_AMPLITUDE_MODE or frame.operationMode == interface.RGB_DISTANCE_AMPLITUDE_MODE:
                 amp = frame.np_amplitude()[ypos][xpos]
-                dist2D_caption = "2D X:{} Y:{} {}mm/{}lsb".format(xpos, ypos, distance2D, amp)
+                dist2D_caption = "2D X:{} Y:{} Z:{}mm/{}lsb".format(xpos, ypos, distance2D, amp)
             else:
-                dist2D_caption = "2D X:{} Y:{} {}mm".format(xpos, ypos, distance2D)
+                dist2D_caption = "2D X:{} Y:{} Z:{}mm".format(xpos, ypos, distance2D)
 
             dist3D_caption = "3D X:{:.1f}mm Y:{:.1f}mm Z:{:.1f}mm".format(
                 frame.np_distance3D()[interface.OUT_X, ypos, xpos],
@@ -251,11 +283,13 @@ def addDistanceInfo(distMat, frame, lidarWidth, lidarHeight, scaleSize):
         info_caption = "{}x{} <{}fps> {:.2f}'C".format(width,height,viewerInfo.drawframeCount,viewerInfo.temperature)
 
         cv2.putText(infoImage, info_caption, (10, 23), cv2.FONT_HERSHEY_SIMPLEX, textSize, (0,0,0), 1, cv2.LINE_AA)
-        cv2.putText(infoImage, dist2D_caption, (10, 46), cv2.FONT_HERSHEY_SIMPLEX, textSize, (0,0,0), 1, cv2.LINE_AA)
-        cv2.putText(infoImage, dist3D_caption, (10, 70), cv2.FONT_HERSHEY_SIMPLEX, textSize, (0,0,0), 1, cv2.LINE_AA)
+        cv2.putText(infoImage, int_caption, (10, 46), cv2.FONT_HERSHEY_SIMPLEX, textSize, (0,0,0), 1, cv2.LINE_AA);
+        cv2.putText(infoImage, dist2D_caption, (10, 70), cv2.FONT_HERSHEY_SIMPLEX, textSize, (0,0,0), 1, cv2.LINE_AA)
+        cv2.putText(infoImage, dist3D_caption, (10, 96), cv2.FONT_HERSHEY_SIMPLEX, textSize, (0,0,0), 1, cv2.LINE_AA)
     else:
         info_caption = "{}x{} <{}fps> {:.2f}'C".format(width,height,viewerInfo.drawframeCount,viewerInfo.temperature)
         cv2.putText(infoImage, info_caption, (10, 23), cv2.FONT_HERSHEY_SIMPLEX, textSize, (0,0,0), 1, cv2.LINE_AA)
+        cv2.putText(infoImage, int_caption, (10, 46), cv2.FONT_HERSHEY_SIMPLEX, textSize, (0,0,0), 1, cv2.LINE_AA);
 
     distMat = np.vstack((distMat, infoImage))
     return distMat
@@ -309,18 +343,6 @@ def visualize_loop():
             use_o3d = False
             
     
-    lidar = interface.NanoLidar(viewerInfo.ipAddress, viewerInfo.lensType, viewerInfo.lidarAngle)
-#    lidar.set_filters(interface.FUNC_ON, interface.FUNC_ON, 300, 200, 100, 0, interface.FUNC_OFF)
-    lidar.set_filters(interface.FUNC_OFF, interface.FUNC_OFF, 0, 0, 0, 0, interface.FUNC_OFF)
-    lidar.set_3d_filter(100)
-    lidar.set_frame_rate(interface.FRAME_15FPS)
-    lidar.set_modulation(interface.MOD_12Mhz, interface.MOD_CH0, interface.FUNC_OFF)
-    lidar.set_intetration_time(1000, 50, 0, 100)
-#    lidar.set_hdr_mode(interface.HDR_NONE_MODE) #HDR_TEMPORAL_MODE, HDR_SPATIAL_MODE, HDR_NONE_MODE
-#    lidar.set_intetration_time(300, 100, 0, 100)
-#    lidar.set_color_range(interface.MAX_DISTANCE_12MHZ, interface.MAX_GRAYSCALE_VALUE, interface.FUNC_OFF)
-    lidar.printConfiguration();
-    
     color_3d_lut = np.array([
         [lidar.get_distance_color(z).r / 255.0,
          lidar.get_distance_color(z).g / 255.0,
@@ -328,7 +350,7 @@ def visualize_loop():
         for z in range(interface.NSL_LIMIT_FOR_VALID_DATA)
     ], dtype=np.float32)
     
-    try:        
+    try:
         lidar.start_stream(viewerInfo.operationMode)
 
         print("[INFO] ESC or 'q' 종료")
@@ -378,8 +400,12 @@ def visualize_loop():
                     imageDistance[0:interface.NSL_LIDAR_TYPE_A_HEIGHT, 0:interface.NSL_LIDAR_TYPE_A_WIDTH] = lidar.get_distance_color_array(dist_roi)
                     imageAmplitude[0:interface.NSL_LIDAR_TYPE_A_HEIGHT, 0:interface.NSL_LIDAR_TYPE_A_WIDTH] = lidar.get_amplitude_color_array(amp_roi)
 
+                    grayImg = cv2.cvtColor(imageAmplitude, cv2.COLOR_BGR2GRAY)
+                    histImg = cv2.equalizeHist(grayImg)
+                    equalizeAmplImg = cv2.cvtColor(histImg, cv2.COLOR_GRAY2BGR)
+                    
                     # 합쳐서 보기
-                    vis2d = np.hstack([imageDistance, imageAmplitude])
+                    vis2d = np.hstack([imageDistance, equalizeAmplImg])
                     if frame.includeRgb:
                         rgb = frame.np_rgb()
                         #target_w, target_h = 640, 480
@@ -428,7 +454,7 @@ def visualize_loop():
                             area_indices = valid_indices[area_mask]
                             z_vals_int = np.clip(z_valid[area_mask].astype(int), 0, interface.NSL_LIMIT_FOR_VALID_DATA - 1)
                             cloud_colors_np[area_indices, :] = color_3d_lut[z_vals_int]
-                                                
+
                             viewerInfo.area_inCount = np.sum(area_mask)
                         else:
                             viewerInfo.area_inCount = 0
@@ -459,7 +485,7 @@ def visualize_loop():
                 #new_h = int(h * scale)                        
                 small = cv2.resize(rgb, (640, 360))
                 cv2.imshow(winName, small)
-                
+
             viewerInfo.updateFps()
 
             if viewerInfo.saveLog:
@@ -484,5 +510,16 @@ if __name__ == "__main__":
     사용법:
       python main.py 필요시 IP/모드/3D 사용 여부를 수정하세요.
     """
+    lidar = interface.NanoLidar(viewerInfo.ipAddress, viewerInfo.lensType, viewerInfo.lidarAngle)
+    lidar.set_filters(interface.FUNC_ON, interface.FUNC_ON, 300, 200, 0, 0, interface.FUNC_OFF)
+    lidar.set_3d_filter(150)
+    lidar.set_auto_integration_time(viewerInfo.autoIntRoi, viewerInfo.autoIntRoiEnable)
+    lidar.set_color_range(interface.MAX_DISTANCE_12MHZ, interface.MAX_GRAYSCALE_VALUE, interface.FUNC_ON)
+#    lidar.set_frame_rate(interface.FRAME_15FPS)
+#    lidar.set_modulation(interface.MOD_24Mhz, interface.MOD_CH0, interface.FUNC_OFF)
+#    lidar.set_dual_beam(interface.DB_3MHZ, interface.DB_CORRECTION)
+#    lidar.set_intetration_time(1000, 50, 0, 100)
+#    lidar.set_hdr_mode(interface.HDR_NONE_MODE) #HDR_TEMPORAL_MODE, HDR_SPATIAL_MODE, HDR_NONE_MODE
+    lidar.printConfiguration();
     
     visualize_loop()
