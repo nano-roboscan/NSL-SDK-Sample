@@ -110,7 +110,7 @@ typedef struct ViewerInfo_
 		mouseX = -1;
 		mouseY = -1;
 
-		area_enable = true; // true : area display, false : all display
+		area_enable = false; // true : area display, false : all display
 		area_left = -800;// -800.0f; // mm
 		area_right = 1500;// 1500.0f; // mm
 		area_top = -500.0f; // mm
@@ -139,7 +139,7 @@ typedef struct ViewerInfo_
 		operationMode = OPERATION_MODE_OPTIONS::DISTANCE_AMPLITUDE_MODE;
 		
 		//sprintf(ipAddress,"/dev/ttyNsl3140");
-		//sprintf(ipAddress,"\\\\.\\COM12");
+		//sprintf(ipAddress,"\\\\.\\COM8");
 		sprintf(ipAddress,"192.168.0.220");
 	}
 
@@ -232,11 +232,11 @@ void drawPointCloud()
 
 void mouseCallbackCV(int event, int x, int y, int flags, void* user_data)
 {
-    if (event == EVENT_LBUTTONUP)
-    {
-        gtViewerInfo.mouseX = x;
+	if (event == EVENT_LBUTTONUP)
+	{
+		gtViewerInfo.mouseX = x;
 		gtViewerInfo.mouseY = y;
-    }
+	}
 }
 
 void printConfiguration()
@@ -657,13 +657,15 @@ void processPointCloud(NslPCD *ptNslPCD)
 		}
 		
 #ifdef __USED_PCL_LIBLARY__
-		gtViewerInfo.clouds[0]->clear();
 		if( gtViewerInfo.clouds[0]->width != width || gtViewerInfo.clouds[0]->height != height){
+			gtViewerInfo.clouds[0]->clear();
 			gtViewerInfo.clouds[0]->width = width;
 			gtViewerInfo.clouds[0]->height = height;
+			gtViewerInfo.clouds[0]->is_dense = false;
 			gtViewerInfo.clouds[0]->points.resize(width*height);
 		}
 #endif
+//		printf("points.size() = %d, width = %d, height = %d\n", gtViewerInfo.clouds[0]->size(), width, height);
 
 		for(int y = 0, index = 0; y < height; y++)
 		{
@@ -704,6 +706,11 @@ void processPointCloud(NslPCD *ptNslPCD)
 						point.g = color3D.g;
 						point.r = color3D.r;
 					}
+				}
+				else{
+					pcl::PointXYZRGB &point = gtViewerInfo.clouds[0]->points[index];
+					point.x = point.y = point.z = std::numeric_limits<float>::quiet_NaN();
+					point.b = point.g = point.r = 0;
 				}
 #endif
 			}
@@ -802,6 +809,7 @@ bool CaptureData()
 	return false;
 }
 
+
 //////////////////////////////////// main function /////////////////////////////////////////////
 
 /*
@@ -826,10 +834,10 @@ int main(int argc, char *argv[])
 #ifdef _WINDOWS
 	int ret = findPortsByVidPid("1FC9", "0094", gtViewerInfo.ipAddress);
 	if( ret < 0 ){
-		printf("findPortsByVidPid:: not find com port :: defined ipaddr = %s\n", gtViewerInfo.ipAddress);
+		//printf("findPortsByVidPid:: not find com port :: defined ipaddr = %s\n", gtViewerInfo.ipAddress);
 	}
 	else{
-		printf("findPortsByVidPid:: find com port = %s\n", gtViewerInfo.ipAddress);
+		//printf("findPortsByVidPid:: find com port = %s\n", gtViewerInfo.ipAddress);
 	}
 #endif
 
@@ -854,7 +862,7 @@ int main(int argc, char *argv[])
 	viewer->addCoordinateSystem(1.0);
 	viewer->setBackgroundColor(0, 0, 0);
 	viewer->initCameraParameters();
-	viewer->setCameraPosition(0, 0, -5, 0, 0, 0, 0, -1, 0, 0);
+	viewer->setCameraPosition(0, 0, -2, 0, 0, 0, 0, -1, 0, 0);
 	viewer->setShowFPS(false);
 	 // keyboard event callback
 	viewer->registerKeyboardCallback(onKeyboardEvent, (void*)viewer.get());
@@ -888,7 +896,7 @@ int main(int argc, char *argv[])
 
 	gtViewerInfo.nslConfig.lidarAngle = 0;
 	gtViewerInfo.nslConfig.lensType = NslOption::LENS_TYPE::LENS_SF;
-	gtViewerInfo.handle = nsl_open(gtViewerInfo.ipAddress, &gtViewerInfo.nslConfig, FUNCTION_OPTIONS::FUNC_ON);
+	gtViewerInfo.handle = nsl_open(gtViewerInfo.ipAddress, &gtViewerInfo.nslConfig, FUNCTION_OPTIONS::FUNC_OFF);
 	if( gtViewerInfo.handle < 0 ){
 		printf("nsl_open::handle open error::%d\n", gtViewerInfo.handle);
 		exit(0);
@@ -898,32 +906,21 @@ int main(int argc, char *argv[])
 	nsl_setModulation(gtViewerInfo.handle, MODULATION_OPTIONS::MOD_12Mhz, MODULATION_CH_OPTIONS::MOD_CH0, FUNCTION_OPTIONS::FUNC_OFF);
 	nsl_setFrameRate(gtViewerInfo.handle, FRAME_RATE_OPTIONS::FRAME_15FPS);
 	nsl_setIntegrationTime(gtViewerInfo.handle, 1000, 400, 50, 100);
-	nsl_setGrayscaleillumination(gtViewerInfo.handle, FUNCTION_OPTIONS::FUNC_OFF);
-	nsl_setUdpSpeed(gtViewerInfo.handle, UDP_SPEED_OPTIONS::NET_1000Mbps);
 	nsl_setCorrection(gtViewerInfo.handle, FUNCTION_OPTIONS::FUNC_ON, FUNCTION_OPTIONS::FUNC_ON, FUNCTION_OPTIONS::FUNC_OFF, FUNCTION_OPTIONS::FUNC_OFF);
 	nsl_setBinning(gtViewerInfo.handle, FUNCTION_OPTIONS::FUNC_OFF, FUNCTION_OPTIONS::FUNC_OFF);
 	nsl_setHdrMode(gtViewerInfo.handle, HDR_OPTIONS::HDR_NONE_MODE);
 	nsl_setAdcOverflowSaturation(gtViewerInfo.handle, FUNCTION_OPTIONS::FUNC_ON, FUNCTION_OPTIONS::FUNC_ON);
 	nsl_setDualBeam(gtViewerInfo.handle, DUALBEAM_MOD_OPTIONS::DB_OFF, DUALBEAM_OPERATION_OPTIONS::DB_CORRECTION);
-	nsl_setFilter(gtViewerInfo.handle, FUNCTION_OPTIONS::FUNC_OFF, FUNCTION_OPTIONS::FUNC_OFF, 300, 200, 300, 400, FUNCTION_OPTIONS::FUNC_ON);
-	nsl_setRoi(gtViewerInfo.handle, 0, 0, 319, 239);
-	nsl_setBinning(gtViewerInfo.handle, FUNCTION_OPTIONS::FUNC_OFF, FUNCTION_OPTIONS::FUNC_OFF);
+	nsl_setFilter(gtViewerInfo.handle, FUNCTION_OPTIONS::FUNC_OFF, FUNCTION_OPTIONS::FUNC_OFF, 300, 200, 0, 0, FUNCTION_OPTIONS::FUNC_OFF);
 	nsl_set3DFilter(gtViewerInfo.handle, 100);
+	nsl_setRoi(gtViewerInfo.handle, 0, 0, 319, 239);
+	nsl_setAutoIntegrationTime(gtViewerInfo.handle, &gtViewerInfo.autoIntRoi, gtViewerInfo.autoIntRoiEnable);
 	nsl_saveConfiguration(gtViewerInfo.handle);
 	nsl_getCurrentConfig(gtViewerInfo.handle, &gtViewerInfo.nslConfig);
 #endif
-
-	nsl_setModulation(gtViewerInfo.handle, MODULATION_OPTIONS::MOD_12Mhz, MODULATION_CH_OPTIONS::MOD_CH0, FUNCTION_OPTIONS::FUNC_OFF);
-	nsl_setFrameRate(gtViewerInfo.handle, FRAME_RATE_OPTIONS::FRAME_15FPS);
-	nsl_setColorRange(13000, MAX_GRAYSCALE_VALUE, NslOption::FUNCTION_OPTIONS::FUNC_ON);
-	nsl_setIntegrationTime(gtViewerInfo.handle, 1000, 100, 0, 100);
-	nsl_setFilter(gtViewerInfo.handle, FUNCTION_OPTIONS::FUNC_ON, FUNCTION_OPTIONS::FUNC_ON, 300, 100, 0, 0, FUNCTION_OPTIONS::FUNC_OFF);
+	nsl_setFilter(gtViewerInfo.handle, FUNCTION_OPTIONS::FUNC_ON, FUNCTION_OPTIONS::FUNC_ON, 300, 200, 0, 0, FUNCTION_OPTIONS::FUNC_OFF);
 	nsl_set3DFilter(gtViewerInfo.handle, 100);
-//	nsl_setFilter(gtViewerInfo.handle, FUNCTION_OPTIONS::FUNC_OFF, FUNCTION_OPTIONS::FUNC_OFF, 0, 0, 0, 0, FUNCTION_OPTIONS::FUNC_OFF);
-//	nsl_set3DFilter(gtViewerInfo.handle, 0);
-	nsl_setRoi(gtViewerInfo.handle, 0, 0, 319, 239);
-	nsl_setAutoIntegrationTime(gtViewerInfo.handle, &gtViewerInfo.autoIntRoi, gtViewerInfo.autoIntRoiEnable);
-	
+	nsl_setColorRange(13000, MAX_GRAYSCALE_VALUE, NslOption::FUNCTION_OPTIONS::FUNC_ON);
 	nsl_getCurrentConfig(gtViewerInfo.handle, &gtViewerInfo.nslConfig);
 	printConfiguration();	
 

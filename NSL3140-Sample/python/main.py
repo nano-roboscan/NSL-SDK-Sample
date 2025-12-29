@@ -117,10 +117,8 @@ def save_data_pcd(frame, file_path: str):
 
     # lidar 크기 설정
     if frame.lidarType != interface.TYPE_B:
-        lidar_width, lidar_height = interface.NSL_LIDAR_TYPE_A_WIDTH, interface.NSL_LIDAR_TYPE_A_HEIGHT
         width, height, points = 320, 240, 76800
     else:
-        lidar_width, lidar_height = interface.NSL_LIDAR_TYPE_B_WIDTH, interface.NSL_LIDAR_TYPE_B_HEIGHT
         width, height, points = 800, 600, 480000
 
     is_amplitude = frame.operationMode in (
@@ -309,9 +307,9 @@ def visualize_loop():
             use_o3d = True
 
             o3d_vis = o3d.visualization.Visualizer()
-            o3d_vis.create_window(window_name="PointCloud (Open3D)", width=960, height=720, visible=True)
+            o3d_vis.create_window(window_name="PointCloud (Open3D)", width=screen_width, height=screen_height, visible=True)
 
-            cloud_points = np.zeros((interface.NSL_LIDAR_TYPE_A_HEIGHT*interface.NSL_LIDAR_TYPE_A_WIDTH, 3), dtype=np.float32)
+            cloud_points = np.zeros((lidar_height*lidar_width, 3), dtype=np.float32)
             cloud_colors = np.zeros_like(cloud_points)
             pcl_cloud = o3d.geometry.PointCloud()
 
@@ -358,12 +356,14 @@ def visualize_loop():
         draw_2d = True
         first_frame = True
 
-        imageDistance  = np.zeros((interface.NSL_LIDAR_TYPE_A_HEIGHT, interface.NSL_LIDAR_TYPE_A_WIDTH, 3), dtype=np.uint8)
+        imageDistance  = np.zeros((lidar_height, lidar_width, 3), dtype=np.uint8)
         imageAmplitude = np.zeros_like(imageDistance)
         rgb = np.zeros((interface.NSL_RGB_IMAGE_HEIGHT, interface.NSL_RGB_IMAGE_WIDTH, 3), dtype=np.uint8)
 
-        frame = interface.NslPCD()
-
+        frame0 = interface.NslPCD()
+        frame1 = interface.NslPCD()
+        frames = [frame0, frame1]
+        frame_index = 0
         
         while True:
             # ---------- 키 처리 ----------
@@ -374,40 +374,43 @@ def visualize_loop():
                 draw_2d = not draw_2d
                 print("draw_2d = %d" % draw_2d)
                 
-            ret = lidar.get_frame(frame, timeout_ms=1000)
+            ret = lidar.get_frame(frames[frame_index], timeout_ms=1000)
             if ret != interface.NSL_SUCCESS:
                 continue
                 
             viewerInfo.area_inCount = 0
-            viewerInfo.temperature  = frame.temperature            
+            viewerInfo.temperature  = frames[frame_index].temperature            
 
-            xMin, yMin  = frame.roiXMin, frame.roiYMin
-            dist2d      = frame.np_distance2D()
-            amplitude   = frame.np_amplitude()
-            dist3d      = frame.np_distance3D()
+            xMin, yMin  = frames[frame_index].roiXMin, frames[frame_index].roiYMin
+            dist2d      = frames[frame_index].np_distance2D()
+            amplitude   = frames[frame_index].np_amplitude()
+            dist3d      = frames[frame_index].np_distance3D()
             
             # --------- 2D Distance / Amplitude ----------
             # uint8 3채널 BGR 이미지
                         
-            if frame.includeLidar:
+            if frames[frame_index].includeLidar:
                 
                 if draw_2d:
                     # ROI 영역 선택
-                    dist_roi = dist2d[0:interface.NSL_LIDAR_TYPE_A_HEIGHT, 0:interface.NSL_LIDAR_TYPE_A_WIDTH]
-                    amp_roi = amplitude[0:interface.NSL_LIDAR_TYPE_A_HEIGHT, 0:interface.NSL_LIDAR_TYPE_A_WIDTH]
+                    dist_roi = dist2d[0:lidar_height, 0:lidar_width]
+                    amp_roi = amplitude[0:lidar_height, 0:lidar_width]
 
                      # 2D 이미지 벡터화 처리
-                    imageDistance[0:interface.NSL_LIDAR_TYPE_A_HEIGHT, 0:interface.NSL_LIDAR_TYPE_A_WIDTH] = lidar.get_distance_color_array(dist_roi)
-                    imageAmplitude[0:interface.NSL_LIDAR_TYPE_A_HEIGHT, 0:interface.NSL_LIDAR_TYPE_A_WIDTH] = lidar.get_amplitude_color_array(amp_roi)
+                    imageDistance[0:lidar_height, 0:lidar_width] = lidar.get_distance_color_array(dist_roi)
+                    imageAmplitude[0:lidar_height, 0:lidar_width] = lidar.get_amplitude_color_array(amp_roi)
 
-                    grayImg = cv2.cvtColor(imageAmplitude, cv2.COLOR_BGR2GRAY)
-                    histImg = cv2.equalizeHist(grayImg)
-                    equalizeAmplImg = cv2.cvtColor(histImg, cv2.COLOR_GRAY2BGR)
-                    
+                    distResize = cv2.resize( imageDistance, None, fx=imgScale, fy=imgScale, interpolation=cv2.INTER_LINEAR )
+                    amplResize = cv2.resize( imageAmplitude, None, fx=imgScale, fy=imgScale, interpolation=cv2.INTER_LINEAR )
+
+                    #grayImg = cv2.cvtColor(imageAmplitude, cv2.COLOR_BGR2GRAY)
+                    #histImg = cv2.equalizeHist(grayImg)
+                    #equalizeAmplImg = cv2.cvtColor(histImg, cv2.COLOR_GRAY2BGR)
+
                     # 합쳐서 보기
-                    vis2d = np.hstack([imageDistance, equalizeAmplImg])
-                    if frame.includeRgb:
-                        rgb = frame.np_rgb()
+                    vis2d = np.hstack([distResize, amplResize])
+                    if frames[frame_index].includeRgb:
+                        rgb = frames[frame_index].np_rgb()
                         #target_w, target_h = 640, 480
                         #h, w = rgb.shape[:2]
                         #scale = min(target_w / w, target_h / h)
@@ -416,17 +419,17 @@ def visualize_loop():
                         small = cv2.resize(rgb, (640, 360))
                         vis2d = np.vstack([vis2d, small])
                         
-                    vis2d = addDistanceInfo(vis2d, frame, interface.NSL_LIDAR_TYPE_A_WIDTH, interface.NSL_LIDAR_TYPE_A_HEIGHT, 1)
+                    vis2d = addDistanceInfo(vis2d, frames[frame_index], lidar_width, lidar_height, int(imgScale))
                     cv2.imshow(winName, vis2d)
     
                 
                 if use_o3d:
-                    x_roi = dist3d[interface.OUT_X, 0:interface.NSL_LIDAR_TYPE_A_HEIGHT, 0:interface.NSL_LIDAR_TYPE_A_WIDTH]
-                    y_roi = dist3d[interface.OUT_Y, 0:interface.NSL_LIDAR_TYPE_A_HEIGHT, 0:interface.NSL_LIDAR_TYPE_A_WIDTH]
-                    z_roi = dist3d[interface.OUT_Z, 0:interface.NSL_LIDAR_TYPE_A_HEIGHT, 0:interface.NSL_LIDAR_TYPE_A_WIDTH]
+                    x_roi = dist3d[interface.OUT_X, 0:lidar_height, 0:lidar_width]
+                    y_roi = dist3d[interface.OUT_Y, 0:lidar_height, 0:lidar_width]
+                    z_roi = dist3d[interface.OUT_Z, 0:lidar_height, 0:lidar_width]
                     
-                    cloud_points_np = np.zeros((interface.NSL_LIDAR_TYPE_A_HEIGHT*interface.NSL_LIDAR_TYPE_A_WIDTH, 3), dtype=np.float64)
-                    cloud_colors_np = np.full((interface.NSL_LIDAR_TYPE_A_HEIGHT*interface.NSL_LIDAR_TYPE_A_WIDTH, 3), 196/255.0, dtype=np.float64)
+                    cloud_points_np = np.zeros((lidar_height*lidar_width, 3), dtype=np.float64)
+                    cloud_colors_np = np.full((lidar_height*lidar_width, 3), 196/255.0, dtype=np.float64)
                     
                     valid_mask = (z_roi < interface.NSL_LIMIT_FOR_VALID_DATA).flatten()
                     valid_indices = np.flatnonzero(valid_mask)
@@ -476,8 +479,8 @@ def visualize_loop():
                     o3d_vis.poll_events()
                     o3d_vis.update_renderer()   
 
-            elif frame.includeRgb:
-                rgb = frame.np_rgb()
+            elif frames[frame_index].includeRgb:
+                rgb = frames[frame_index].np_rgb()
                 #target_w, target_h = 640, 480
                 #h, w = rgb.shape[:2]
                 #scale = min(target_w / w, target_h / h)
@@ -489,8 +492,9 @@ def visualize_loop():
             viewerInfo.updateFps()
 
             if viewerInfo.saveLog:
-                log_data(frame)
-
+                log_data(frames[frame_index])
+                
+            frame_index = 1 - frame_index
     finally:
         try:
             lidar.stop_stream()
@@ -514,12 +518,29 @@ if __name__ == "__main__":
     lidar.set_filters(interface.FUNC_ON, interface.FUNC_ON, 300, 200, 0, 0, interface.FUNC_OFF)
     lidar.set_3d_filter(150)
     lidar.set_auto_integration_time(viewerInfo.autoIntRoi, viewerInfo.autoIntRoiEnable)
-    lidar.set_color_range(interface.MAX_DISTANCE_12MHZ, interface.MAX_GRAYSCALE_VALUE, interface.FUNC_ON)
+    lidar.set_color_range(interface.MAX_DISTANCE_12MHZ, interface.MAX_GRAYSCALE_VALUE, interface.FUNC_OFF)
 #    lidar.set_frame_rate(interface.FRAME_15FPS)
 #    lidar.set_modulation(interface.MOD_24Mhz, interface.MOD_CH0, interface.FUNC_OFF)
 #    lidar.set_dual_beam(interface.DB_3MHZ, interface.DB_CORRECTION)
 #    lidar.set_intetration_time(1000, 50, 0, 100)
 #    lidar.set_hdr_mode(interface.HDR_NONE_MODE) #HDR_TEMPORAL_MODE, HDR_SPATIAL_MODE, HDR_NONE_MODE
     lidar.printConfiguration();
+
+    # --- GUI 초기화 ---
+    if lidar.get_nsl_config().lidarType == interface.TYPE_B:
+        imgScale = 1.0
+        lidar_viewer_width = interface.NSL_LIDAR_TYPE_B_WIDTH
+        lidar_viewer_height = interface.NSL_LIDAR_TYPE_B_HEIGHT
+        lidar_width = interface.NSL_LIDAR_TYPE_B_WIDTH
+        lidar_height = interface.NSL_LIDAR_TYPE_B_HEIGHT
+    else:
+        imgScale = 2.0
+        lidar_viewer_width = int(imgScale * interface.NSL_LIDAR_TYPE_A_WIDTH)
+        lidar_viewer_height = int(imgScale * interface.NSL_LIDAR_TYPE_A_HEIGHT)
+        lidar_width = interface.NSL_LIDAR_TYPE_A_WIDTH
+        lidar_height = interface.NSL_LIDAR_TYPE_A_HEIGHT
+    
+    screen_width = 960
+    screen_height = 720
     
     visualize_loop()
