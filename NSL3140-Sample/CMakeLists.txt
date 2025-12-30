@@ -73,9 +73,13 @@ target_include_directories(nslApp PRIVATE ${NSL_LIB_INCLUDE_DIR})
 endif()
 
 if (WIN32)
+	set(NSL_DLL_PATH
+        ${CMAKE_CURRENT_SOURCE_DIR}/nsl_lib/lib/windows/shared/nanolib.dll
+    )
+
     add_custom_command(TARGET nslApp POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${NSL_LIB_PATH}/../nanolib.dll"
+            "${NSL_DLL_PATH}"
             $<TARGET_FILE_DIR:nslApp>
     )
 endif()
