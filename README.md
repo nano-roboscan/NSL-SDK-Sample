@@ -6,7 +6,7 @@ NSL2206-SDK와 NSL3140-SDK library 사용 예제 입니다.
 - PCL을 사용하는 경우 PCL-1.12.0-AllInOne-msvc2019-win64.exe 를 설치 후 win_build의 win_build.sln을 사용할 수 있습니다.
 - PCL 라이브러리를 설치한 경우 main.cpp의 __USED_PCL_LIBLARY__ 활성화 후 사용하세요.
 - opencv_library는 https://github.com/nano-roboscan/OpenCv454-LIbrary 를 download후 사용 하세요
-- cmake를 사용하여 프로젝트 생성 시 설치된 opencv_library를 함께 사용 : cmake .. -DOpenCV_DIR=D:\git-hub\opencv_library\x64\vc16\lib
+- cmake를 사용하여 프로젝트 생성 시 설치된 opencv_library를 함께 사용 : cmake .. -DOpenCV_DIR=D:\git-hub\OpenCv454-LIbrary\opencv_library\x64\vc16\lib
 - NSL3140의 기본 아이피는 192.168.0.220 입니다. 변경 시 WINDOWS Application을 사용하여 변경 가능합니다.
 
 ## Python  
