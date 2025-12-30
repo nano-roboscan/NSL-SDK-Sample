@@ -285,6 +285,7 @@ void printConfiguration()
 		, gtViewerInfo.nslConfig.edgeThresholdValue
 		, gtViewerInfo.nslConfig.interferenceDetectionLimitValue
 		, toString(gtViewerInfo.nslConfig.interferenceDetectionLastValueOpt));
+	printf("3D edge filter theshold = %d\n", gtViewerInfo.nslConfig.edgeThresholdValue3D);
 
 	printf("UDP speed = %s\n", toString(gtViewerInfo.nslConfig.udpSpeedOpt));
 	printf("frame rate = %s\n", toString(gtViewerInfo.nslConfig.frameRateOpt));
@@ -748,7 +749,6 @@ void processPointCloud(NslPCD *ptNslPCD)
 			char distanceViewName[100];
 			static Mat concatBuffer;
 			static Mat resizeBuffer;
-			static Mat resizeRgbBuffer;
 			static Mat finalBuffer;
 
 			if( includeAmplitude ){
@@ -777,6 +777,7 @@ void processPointCloud(NslPCD *ptNslPCD)
 			
 			if( includeRgb ){
 				includeRgb = false;
+				static Mat resizeRgbBuffer;
 				cv::resize( imageRgb, resizeRgbBuffer, cv::Size( 640, 360 ), 0, 0, INTER_LINEAR );
 
 				sprintf(distanceViewName,"RGB <%d>", handle);
@@ -925,7 +926,7 @@ int main(int argc, char *argv[])
 
 	gtViewerInfo.nslConfig.lidarAngle = 0;
 	gtViewerInfo.nslConfig.lensType = NslOption::LENS_TYPE::LENS_SF;
-	gtViewerInfo.handle = nsl_open(gtViewerInfo.ipAddress, &gtViewerInfo.nslConfig, FUNCTION_OPTIONS::FUNC_OFF);
+	gtViewerInfo.handle = nsl_open(gtViewerInfo.ipAddress, &gtViewerInfo.nslConfig, FUNCTION_OPTIONS::FUNC_ON);
 	if( gtViewerInfo.handle < 0 ){
 		printf("nsl_open::handle open error::%d\n", gtViewerInfo.handle);
 		exit(0);
@@ -949,7 +950,7 @@ int main(int argc, char *argv[])
 #endif
 	nsl_setFilter(gtViewerInfo.handle, FUNCTION_OPTIONS::FUNC_ON, FUNCTION_OPTIONS::FUNC_ON, 300, 200, 0, 0, FUNCTION_OPTIONS::FUNC_OFF);
 	nsl_set3DFilter(gtViewerInfo.handle, 100);
-	nsl_setColorRange(13000, MAX_GRAYSCALE_VALUE, NslOption::FUNCTION_OPTIONS::FUNC_ON);
+	nsl_setColorRange(MAX_DISTANCE_12MHZ, MAX_GRAYSCALE_VALUE, NslOption::FUNCTION_OPTIONS::FUNC_ON);
 	nsl_getCurrentConfig(gtViewerInfo.handle, &gtViewerInfo.nslConfig);
 	printConfiguration();	
 
