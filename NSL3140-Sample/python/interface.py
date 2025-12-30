@@ -259,7 +259,6 @@ class NslPCD(Structure):
         ("amplitude", c_int * (NSL_LIDAR_TYPE_B_HEIGHT  * NSL_LIDAR_TYPE_B_WIDTH)),
         ("distance2D", c_int * (NSL_LIDAR_TYPE_B_HEIGHT  * NSL_LIDAR_TYPE_B_WIDTH)),
         ("distance3D", c_double * (MAX_OUT * NSL_LIDAR_TYPE_B_HEIGHT  * NSL_LIDAR_TYPE_B_WIDTH)),
-        ("rgb", NslVec3b * (NSL_RGB_IMAGE_HEIGHT * NSL_RGB_IMAGE_WIDTH)),
     ]
 
     def __init__(self, *args, **kwargs):
@@ -274,9 +273,6 @@ class NslPCD(Structure):
         self.distance3D_np = np.ctypeslib.as_array(self.distance3D).reshape(
             (MAX_OUT, NSL_LIDAR_TYPE_B_HEIGHT, NSL_LIDAR_TYPE_B_WIDTH)
         )
-        self.rgb_np = np.ctypeslib.as_array(self.rgb).view(np.uint8).reshape(
-            (NSL_RGB_IMAGE_HEIGHT, NSL_RGB_IMAGE_WIDTH, 3)
-        )
         
     # ---- numpy 변환 도우미 ----
     def np_distance2D(self):
@@ -288,8 +284,6 @@ class NslPCD(Structure):
     def np_distance3D(self):
         return self.distance3D_np
 
-    def np_rgb(self):
-        return self.rgb_np
 
 # Python Wrapper
 class NanoLidar:
@@ -309,6 +303,9 @@ class NanoLidar:
 
         _nsl.nsl_getPointCloudData.argtypes = [c_int, POINTER(NslPCD), c_int]
         _nsl.nsl_getPointCloudData.restype  = c_int
+
+        _nsl.nsl_getPointCloudRgbData.argtypes = [c_int, POINTER(NslPCD), POINTER(NslVec3b), c_int]
+        _nsl.nsl_getPointCloudRgbData.restype  = c_int
         
         _nsl.nsl_setFrameRate.argtypes = [c_int, c_int]
         _nsl.nsl_setFrameRate.restype  = c_int
@@ -369,6 +366,11 @@ class NanoLidar:
 
         _nsl.nsl_getCurrentConfig.argtypes = [c_int, POINTER(NslConfig)]
         _nsl.nsl_getCurrentConfig.restype  = c_int
+        
+        self.rgb = (NslVec3b * (NSL_RGB_IMAGE_HEIGHT * NSL_RGB_IMAGE_WIDTH))()
+        self.rgb_np = np.ctypeslib.as_array(self.rgb).view(np.uint8).reshape(
+            (NSL_RGB_IMAGE_HEIGHT, NSL_RGB_IMAGE_WIDTH, 3)
+        )
         
         self.cfg = NslConfig()
         self.cfg.lensType = lens_type     #필수 인자
@@ -558,7 +560,18 @@ class NanoLidar:
         print("UDP speed = {0}".format(self.toString_UDP_SPEED_OPTIONS(self.cfg.udpSpeedOpt)))
         print("frame rate = {0}".format(self.toString_FRAME_RATE_OPTIONS(self.cfg.frameRateOpt)))
         print("------------------------------------------------------------------------")
-
+    
+    def get_rgb_np(self):
+        return self.rgb_np
+        
+    def is_rgb_command(self):
+        return self.cfg.operationModeOpt in (
+            RGB_MODE,
+            RGB_DISTANCE_MODE,
+            RGB_DISTANCE_AMPLITUDE_MODE,
+            RGB_DISTANCE_GRAYSCALE_MODE,
+        )
+        
     def get_nsl_config(self):
         return self.cfg
             
@@ -567,14 +580,19 @@ class NanoLidar:
         ret = _nsl.nsl_streamingOn(self.handle, mode)
         if ret != NSL_SUCCESS:
             raise RuntimeError("nsl_streamingOn 실패 (mode={0}) ret = {1}".format(self.toString_OPERATION_MODE_OPTIONS(mode), self.toString_NSL_ERROR_TYPE(ret)))
+        self.cfg.operationModeOpt = mode
         print("[NanoLidar] Streaming ON (mode={0}) ret = {1}".format(self.toString_OPERATION_MODE_OPTIONS(mode), self.toString_NSL_ERROR_TYPE(ret)))
 
     def stop_stream(self):
         ret = _nsl.nsl_streamingOff(self.handle)
+        self.cfg.operationModeOpt = 0
         print("[NanoLidar] Streaming OFF")
         return ret
 
     def get_frame(self, frame, timeout_ms=1000):
+        if self.is_rgb_command():
+            return _nsl.nsl_getPointCloudRgbData(self.handle, byref(frame), self.rgb, timeout_ms)
+            
         return _nsl.nsl_getPointCloudData(self.handle, byref(frame), timeout_ms)
         
     def set_frame_rate(self, FRAME_RATE_OPTIONS):

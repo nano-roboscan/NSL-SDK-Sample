@@ -58,7 +58,7 @@ class ViewerInfo:
         self.area_start              = 0
         self.area_end                = 5000
         self.area_inCount            = 0
-        self.area_enable             = True
+        self.area_enable             = False
         
         #--------------------------------------
         # Auto integration Time
@@ -87,8 +87,7 @@ class ViewerInfo:
             if port.vid == vid and port.pid == pid:
                 return "\\\\.\\" + port.device
         return None
-    
-    
+            
     def updateFps(self):
         self.fps += 1
         elapsed = time.time() - self.start_time
@@ -373,8 +372,8 @@ def visualize_loop():
             elif k == ord('d') or k == ord('D'):
                 draw_2d = not draw_2d
                 print("draw_2d = %d" % draw_2d)
-                
-            ret = lidar.get_frame(frames[frame_index], timeout_ms=1000)
+            
+            ret = lidar.get_frame(frames[frame_index], timeout_ms=1000)                
             if ret != interface.NSL_SUCCESS:
                 continue
                 
@@ -410,13 +409,14 @@ def visualize_loop():
                     # 합쳐서 보기
                     vis2d = np.hstack([distResize, amplResize])
                     if frames[frame_index].includeRgb:
-                        rgb = frames[frame_index].np_rgb()
+                        rgb = lidar.get_rgb_np()
                         #target_w, target_h = 640, 480
                         #h, w = rgb.shape[:2]
                         #scale = min(target_w / w, target_h / h)
                         #new_w = int(w * scale)
-                        #new_h = int(h * scale)                        
-                        small = cv2.resize(rgb, (640, 360))
+                        #new_h = int(h * scale)            
+                        rgb = np.ascontiguousarray(rgb, dtype=np.uint8)                        
+                        small = cv2.resize(rgb, (vis2d.shape[1], 360))
                         vis2d = np.vstack([vis2d, small])
                         
                     vis2d = addDistanceInfo(vis2d, frames[frame_index], lidar_width, lidar_height, int(imgScale))
@@ -480,13 +480,13 @@ def visualize_loop():
                     o3d_vis.update_renderer()   
 
             elif frames[frame_index].includeRgb:
-                rgb = frames[frame_index].np_rgb()
+                rgb = lidar.get_rgb_np()
                 #target_w, target_h = 640, 480
                 #h, w = rgb.shape[:2]
                 #scale = min(target_w / w, target_h / h)
                 #new_w = int(w * scale)
                 #new_h = int(h * scale)                        
-                small = cv2.resize(rgb, (640, 360))
+                small = cv2.resize(rgb, (vis2d.shape[1], 360))
                 cv2.imshow(winName, small)
 
             viewerInfo.updateFps()

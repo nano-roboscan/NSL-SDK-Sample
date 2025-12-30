@@ -63,6 +63,7 @@ typedef struct ViewerInfo_
 {
 	// for management
 	int 		drawView;
+	int		cloud_idx;
 	int 		mainRunning;
 	int		mouseX;
 	int		mouseY;
@@ -96,6 +97,7 @@ typedef struct ViewerInfo_
 	// Auto Integration time ROI
 	NslROI autoIntRoi;	// x_start, x_end :: 0 ~ 319, y_start, y_end :: 0 ~ 239
 	FUNCTION_OPTIONS	autoIntRoiEnable;
+	NslOption::NslVec3b  rgb[NSL_RGB_IMAGE_HEIGHT * NSL_RGB_IMAGE_WIDTH];
 
 	// for PCL
 #ifdef __USED_PCL_LIBLARY__
@@ -109,6 +111,7 @@ typedef struct ViewerInfo_
 		mainRunning = 1;
 		mouseX = -1;
 		mouseY = -1;
+		cloud_idx = 0;
 
 		area_enable = false; // true : area display, false : all display
 		area_left = -800;// -800.0f; // mm
@@ -141,6 +144,14 @@ typedef struct ViewerInfo_
 		//sprintf(ipAddress,"/dev/ttyNsl3140");
 		//sprintf(ipAddress,"\\\\.\\COM8");
 		sprintf(ipAddress,"192.168.0.220");
+	}
+
+	bool isRgbCommand()
+	{
+		return operationMode == OPERATION_MODE_OPTIONS::RGB_MODE
+			|| operationMode == OPERATION_MODE_OPTIONS::RGB_DISTANCE_MODE
+			|| operationMode == OPERATION_MODE_OPTIONS::RGB_DISTANCE_AMPLITUDE_MODE
+			|| operationMode == OPERATION_MODE_OPTIONS::RGB_DISTANCE_GRAYSCALE_MODE;
 	}
 
 }VIEWER_INFO, *LP_VIEWER_INFO;
@@ -215,16 +226,20 @@ void onKeyboardEvent(const pcl::visualization::KeyboardEvent& event, void* viewe
 void drawPointCloud()
 {	
 	pcl::visualization::PCLVisualizer::Ptr viewer = gtViewerInfo.viewers[0];
-	pcl::PointCloud<pcl::PointXYZRGB>::Ptr point_cloud_ptr = gtViewerInfo.clouds[0];
+	pcl::PointCloud<pcl::PointXYZRGB>::Ptr point_cloud_ptr = gtViewerInfo.clouds[gtViewerInfo.cloud_idx];
 
 	if( gtViewerInfo.area_enable ){
 		viewer->updateText("Detection : " + std::to_string(gtViewerInfo.area_inCount), 30, 50, "point-cnt");
 	}
 
 	if( !viewer->wasStopped() && point_cloud_ptr->points.size() > 0 ){
-		viewer->updatePointCloud(point_cloud_ptr, "Viewer pointCloud");
-		viewer->spinOnce(30);
+		viewer->removePointCloud("Viewer pointCloud");
+		viewer->addPointCloud(point_cloud_ptr, "Viewer pointCloud");		
+//		viewer->updatePointCloud(point_cloud_ptr, "Viewer pointCloud");
+		viewer->spinOnce(1);
 	}
+
+	gtViewerInfo.cloud_idx = 1 - gtViewerInfo.cloud_idx;
 }
 
 #endif
@@ -392,10 +407,12 @@ void saveDataPCD(NslPCD *ptNslPCD, const std::string& filePath)
 
 void saveRGB(NslPCD *ptNslPCD, const std::string& filePath)
 {
-    cv::Mat imageRgb(NSL_RGB_IMAGE_HEIGHT, NSL_RGB_IMAGE_WIDTH, CV_8UC3);  // BGR
+	if( !ptNslPCD->includeRgb ) return;
+
+	cv::Mat imageRgb(NSL_RGB_IMAGE_HEIGHT, NSL_RGB_IMAGE_WIDTH, CV_8UC3);  // BGR
 	int totalPixels = NSL_RGB_IMAGE_HEIGHT * NSL_RGB_IMAGE_WIDTH;
 	cv::Vec3b* dstPtr = imageRgb.ptr<cv::Vec3b>();
-	NslOption::NslVec3b* srcPtr = &ptNslPCD->rgb[0][0];
+	NslOption::NslVec3b* srcPtr = &gtViewerInfo.rgb[0];
 
 	for (int i = 0; i < totalPixels; ++i) {
 	    dstPtr[i] = cv::Vec3b(
@@ -476,7 +493,7 @@ void logData(NslPCD *ptNslPCD)
  * 
  * @return cv::Mat 
  */
-Mat addDistanceInfo(Mat distMat, NslPCD *ptNslPCD, int lidarWidth, int lidarHeight, int scaleSize)
+void addDistanceInfo(Mat &distMat, Mat &finalBuffer, NslPCD *ptNslPCD, int lidarWidth, int lidarHeight, int scaleSize)
 {
 	int width = ptNslPCD->width;
 	int height = ptNslPCD->height;
@@ -558,7 +575,7 @@ Mat addDistanceInfo(Mat distMat, NslPCD *ptNslPCD, int lidarWidth, int lidarHeig
 		putText(infoImage, int_caption.c_str(), Point(10, 46), FONT_HERSHEY_SIMPLEX, textSize, Scalar(0, 0, 0), 1, cv::LINE_AA);		
 		putText(infoImage, dist2D_caption.c_str(), Point(10, 70), FONT_HERSHEY_SIMPLEX, textSize, Scalar(0, 0, 0), 1, cv::LINE_AA);
 		putText(infoImage, dist3D_caption.c_str(), Point(10, 95), FONT_HERSHEY_SIMPLEX, textSize, Scalar(0, 0, 0), 1, cv::LINE_AA);
-		vconcat(distMat, infoImage, distMat);
+		vconcat(distMat, infoImage, finalBuffer);
 	}
 	else{
 		Mat infoImage(DISTANCE_INFO_HEIGHT, distMat.cols, CV_8UC3, Scalar(255, 255, 255));
@@ -567,10 +584,10 @@ Mat addDistanceInfo(Mat distMat, NslPCD *ptNslPCD, int lidarWidth, int lidarHeig
 		putText(infoImage, info_caption.c_str(), Point(10, 23), FONT_HERSHEY_SIMPLEX, textSize, Scalar(0, 0, 0), 1, cv::LINE_AA);		
 		putText(infoImage, int_caption.c_str(), Point(10, 46), FONT_HERSHEY_SIMPLEX, textSize, Scalar(0, 0, 0), 1, cv::LINE_AA);			
 
-		vconcat(distMat, infoImage, distMat);
+		vconcat(distMat, infoImage, finalBuffer);
 	}
 
-	return distMat;
+	return;
 }
 
 /**
@@ -607,7 +624,7 @@ void processPointCloud(NslPCD *ptNslPCD)
 	int lidarWidth = ptNslPCD->lidarType != LIDAR_TYPE_OPTIONS::TYPE_B ? NSL_LIDAR_TYPE_A_WIDTH : NSL_LIDAR_TYPE_B_WIDTH;
 	int lidarHeight = ptNslPCD->lidarType != LIDAR_TYPE_OPTIONS::TYPE_B ? NSL_LIDAR_TYPE_A_HEIGHT : NSL_LIDAR_TYPE_B_HEIGHT;
 
-	Mat imageRgb = Mat(NSL_RGB_IMAGE_HEIGHT, NSL_RGB_IMAGE_WIDTH, CV_8UC3);
+	static Mat imageRgb = Mat(NSL_RGB_IMAGE_HEIGHT, NSL_RGB_IMAGE_WIDTH, CV_8UC3);
 
 	gtViewerInfo.temperature = ptNslPCD->temperature;
 	gtViewerInfo.operationMode = ptNslPCD->operationMode;
@@ -624,7 +641,7 @@ void processPointCloud(NslPCD *ptNslPCD)
 	{
 		int totalPixels = NSL_RGB_IMAGE_HEIGHT * NSL_RGB_IMAGE_WIDTH;
 		cv::Vec3b* dstPtr = imageRgb.ptr<cv::Vec3b>();
-		NslOption::NslVec3b* srcPtr = &ptNslPCD->rgb[0][0];
+		NslOption::NslVec3b* srcPtr = &gtViewerInfo.rgb[0];
 
 		for (int i = 0; i < totalPixels; ++i) {
 		    dstPtr[i] = cv::Vec3b(
@@ -643,9 +660,12 @@ void processPointCloud(NslPCD *ptNslPCD)
 		int height = ptNslPCD->height;
 		int xMin = ptNslPCD->roiXMin;
 		int yMin = ptNslPCD->roiYMin;
+		int scaleSize = ptNslPCD->lidarType != LIDAR_TYPE_OPTIONS::TYPE_B ? 2 : 1;
+		int distanceWidth = lidarWidth*scaleSize;
+		int distanceHeight = lidarHeight*scaleSize; 
 
-		Mat imageDistance = Mat(lidarHeight, lidarWidth, CV_8UC3, Scalar(255,255,255));
-		Mat imageAmplitude = Mat(lidarHeight, lidarWidth, CV_8UC3, Scalar(255,255,255));
+		static Mat imageDistance = Mat(lidarHeight, lidarWidth, CV_8UC3, Scalar(255,255,255));
+		static Mat imageAmplitude = Mat(lidarHeight, lidarWidth, CV_8UC3, Scalar(255,255,255));
 
 		if( gtViewerInfo.drawView ){
 			includeDistance = ptNslPCD->operationMode != OPERATION_MODE_OPTIONS::GRAYSCALE_MODE ? true : false;
@@ -657,15 +677,16 @@ void processPointCloud(NslPCD *ptNslPCD)
 		}
 		
 #ifdef __USED_PCL_LIBLARY__
-		if( gtViewerInfo.clouds[0]->width != width || gtViewerInfo.clouds[0]->height != height){
-			gtViewerInfo.clouds[0]->clear();
-			gtViewerInfo.clouds[0]->width = width;
-			gtViewerInfo.clouds[0]->height = height;
-			gtViewerInfo.clouds[0]->is_dense = false;
-			gtViewerInfo.clouds[0]->points.resize(width*height);
-		}
+		if( gtViewerInfo.clouds[gtViewerInfo.cloud_idx]->width != width || gtViewerInfo.clouds[gtViewerInfo.cloud_idx]->height != height)
+			gtViewerInfo.clouds[gtViewerInfo.cloud_idx]->clear();
+
+		gtViewerInfo.clouds[gtViewerInfo.cloud_idx]->width = width;
+		gtViewerInfo.clouds[gtViewerInfo.cloud_idx]->height = height;
+		gtViewerInfo.clouds[gtViewerInfo.cloud_idx]->is_dense = false;
+		gtViewerInfo.clouds[gtViewerInfo.cloud_idx]->points.resize(width*height);
 #endif
 //		printf("points.size() = %d, width = %d, height = %d\n", gtViewerInfo.clouds[0]->size(), width, height);
+//		int none_cnt = 0;
 
 		for(int y = 0, index = 0; y < height; y++)
 		{
@@ -676,7 +697,7 @@ void processPointCloud(NslPCD *ptNslPCD)
 
 #ifdef __USED_PCL_LIBLARY__
 				if( ptNslPCD->distance3D[OUT_Z][y+yMin][x+xMin] < NSL_LIMIT_FOR_VALID_DATA ){
-					pcl::PointXYZRGB &point = gtViewerInfo.clouds[0]->points[index];
+					pcl::PointXYZRGB &point = gtViewerInfo.clouds[gtViewerInfo.cloud_idx]->points[index];
 
 					point.x = ptNslPCD->distance3D[OUT_X][y+yMin][x+xMin]/1000.0;
 					point.y = ptNslPCD->distance3D[OUT_Y][y+yMin][x+xMin]/1000.0;
@@ -708,14 +729,16 @@ void processPointCloud(NslPCD *ptNslPCD)
 					}
 				}
 				else{
-					pcl::PointXYZRGB &point = gtViewerInfo.clouds[0]->points[index];
+					pcl::PointXYZRGB &point = gtViewerInfo.clouds[gtViewerInfo.cloud_idx]->points[index];
 					point.x = point.y = point.z = std::numeric_limits<float>::quiet_NaN();
 					point.b = point.g = point.r = 0;
+//					none_cnt++;
 				}
 #endif
 			}
 		}
 
+//		printf("none_cnt = %d\n", none_cnt);
 			
 #ifdef __USED_PCL_LIBLARY__
 		if( gtViewerInfo.drawView & DRAW_POINT_CLOUD )
@@ -723,59 +746,49 @@ void processPointCloud(NslPCD *ptNslPCD)
 #endif
 		if( includeDistance && (gtViewerInfo.drawView & DRAW_OPENCV_VIEW) ){
 			char distanceViewName[100];
-			int scaleSize = ptNslPCD->lidarType != LIDAR_TYPE_OPTIONS::TYPE_B ? 2 : 1;
-			int distanceWidth = lidarWidth*scaleSize;
-			int distanceHeight = lidarHeight*scaleSize;
-	
+			static Mat concatBuffer;
+			static Mat resizeBuffer;
+			static Mat resizeRgbBuffer;
+			static Mat finalBuffer;
+
 			if( includeAmplitude ){
-				if( includeRgb )
-					sprintf(distanceViewName,"RGB & Distance & Amplitude 2D <%d>", handle);
-				else
-					sprintf(distanceViewName,"Distance & Amplitude 2D <%d>", handle);
+				sprintf(distanceViewName,"Distance & Amplitude 2D <%d>", handle);
 	
 				distanceWidth = distanceWidth*2;
-				hconcat(imageDistance, imageAmplitude, imageDistance);
+				hconcat(imageDistance, imageAmplitude, concatBuffer);
 			}
 			else if( includeGrayscale ){
-				if( includeRgb )
-					sprintf(distanceViewName,"RGB & Distance & Grayscale 2D <%d>", handle);
-				else
-					sprintf(distanceViewName,"Distance & Grayscale 2D <%d>", handle);
+				sprintf(distanceViewName,"Distance & Grayscale 2D <%d>", handle);
 	
 				distanceWidth = distanceWidth*2;
-				hconcat(imageDistance, imageAmplitude, imageDistance);
+				hconcat(imageDistance, imageAmplitude, concatBuffer);
 			}
 			else{
-				if( includeRgb )
-					sprintf(distanceViewName,"RGB & Distance 2D <%d>", handle);
-				else
-					sprintf(distanceViewName,"Distance 2D <%d>", handle);
+				sprintf(distanceViewName,"Distance 2D <%d>", handle);
 			}
 
-			cv::resize( imageDistance, imageDistance, cv::Size( distanceWidth, distanceHeight ), 0, 0, INTER_LINEAR );
+			cv::resize( concatBuffer, resizeBuffer, cv::Size( distanceWidth, distanceHeight ), 0, 0, INTER_LINEAR );
+	
+			addDistanceInfo(resizeBuffer, finalBuffer, ptNslPCD, lidarWidth, lidarHeight, scaleSize);
+
+			namedWindow(distanceViewName, WINDOW_NORMAL);
+			imshow(distanceViewName, finalBuffer);
+			setMouseCallback(distanceViewName, mouseCallbackCV);
 			
 			if( includeRgb ){
 				includeRgb = false;
-	
-				resize( imageRgb, imageRgb, Size( imageDistance.cols, imageDistance.rows ), 0, 0);
-				vconcat( imageDistance, imageRgb, imageDistance );
-	
-				distanceHeight += 240;
-			}
-	
-			imageDistance = addDistanceInfo(imageDistance, ptNslPCD, lidarWidth, lidarHeight, scaleSize);
+				cv::resize( imageRgb, resizeRgbBuffer, cv::Size( 640, 360 ), 0, 0, INTER_LINEAR );
 
-			namedWindow(distanceViewName, WINDOW_NORMAL);
-			resizeWindow(distanceViewName, distanceWidth, distanceHeight);
-			imshow(distanceViewName, imageDistance);
-			setMouseCallback(distanceViewName, mouseCallbackCV);
+				sprintf(distanceViewName,"RGB <%d>", handle);
+				imshow(distanceViewName, resizeRgbBuffer);
+			}
 		}
 		else if( includeGrayscale && (gtViewerInfo.drawView & DRAW_OPENCV_VIEW) ){
 			char distanceViewName[100];
 			sprintf(distanceViewName,"Grayscale 2D <%d>", handle);
 
 			namedWindow(distanceViewName, WINDOW_NORMAL);
-			resizeWindow(distanceViewName, 640, 480);
+			resizeWindow(distanceViewName, distanceWidth, distanceHeight);
 			imshow(distanceViewName, imageAmplitude);
 			setMouseCallback(distanceViewName, mouseCallbackCV);
 		}
@@ -783,10 +796,10 @@ void processPointCloud(NslPCD *ptNslPCD)
 	else if( includeRgb && (gtViewerInfo.drawView & DRAW_OPENCV_VIEW) ) 
 	{
 		char distanceViewName[100];
+
 		sprintf(distanceViewName,"RGB <%d>", handle);
 
 		namedWindow(distanceViewName, WINDOW_NORMAL);
-		resizeWindow(distanceViewName, 640, 480 );
 		imshow(distanceViewName, imageRgb);
 		setMouseCallback(distanceViewName, mouseCallbackCV);
 	}
@@ -800,10 +813,19 @@ void processPointCloud(NslPCD *ptNslPCD)
 
 bool CaptureData()
 {
-	if( nsl_getPointCloudData(gtViewerInfo.handle, latestFrame.get(), 1000) == NSL_ERROR_TYPE::NSL_SUCCESS )
-	{
-		gtViewerInfo.frameCount++;
-		return true;
+	if( gtViewerInfo.isRgbCommand() ){
+		if( nsl_getPointCloudRgbData(gtViewerInfo.handle, latestFrame.get(), gtViewerInfo.rgb, 1000) == NSL_ERROR_TYPE::NSL_SUCCESS )
+		{
+			gtViewerInfo.frameCount++;
+			return true;
+		}
+	}
+	else{
+		if( nsl_getPointCloudData(gtViewerInfo.handle, latestFrame.get(), 1000) == NSL_ERROR_TYPE::NSL_SUCCESS )
+		{
+			gtViewerInfo.frameCount++;
+			return true;
+		}
 	}
 
 	return false;
@@ -850,10 +872,16 @@ int main(int argc, char *argv[])
 	pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
 	cloud->clear();
 	cloud->is_dense = false;
-	//point_cloud_ptr->reserve(NSL_LIDAR_IMAGE_WIDTH * NSL_LIDAR_IMAGE_HEIGHT);
 	cloud->width = NSL_LIDAR_TYPE_B_WIDTH;
 	cloud->height = NSL_LIDAR_TYPE_B_HEIGHT;
 	cloud->points.resize(cloud->width*cloud->height);
+
+	pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_back(new pcl::PointCloud<pcl::PointXYZRGB>);
+	cloud_back->clear();
+	cloud_back->is_dense = false;
+	cloud_back->width = NSL_LIDAR_TYPE_B_WIDTH;
+	cloud_back->height = NSL_LIDAR_TYPE_B_HEIGHT;
+	cloud_back->points.resize(cloud_back->width*cloud_back->height);
 
 	pcl::visualization::PCLVisualizer::Ptr viewer(new pcl::visualization::PCLVisualizer("NSL PCL 3D PointCloud"));
 	viewer->getRenderWindow()->SetWindowName("NSL PCL 3D Viewer");
@@ -888,6 +916,7 @@ int main(int argc, char *argv[])
 	}
 	
 	gtViewerInfo.clouds.push_back(cloud);
+	gtViewerInfo.clouds.push_back(cloud_back);	
 	gtViewerInfo.viewers.push_back(viewer);
 #endif	
 	timeThread = thread(timeCheckThread, 0);
