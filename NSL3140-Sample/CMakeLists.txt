@@ -14,7 +14,7 @@ endif()
 
 find_package(OpenCV REQUIRED)
 include_directories(${OpenCV_INCLUDE_DIRS})
-
+find_package(Threads REQUIRED)
 
 find_path(NSL_LIB_INCLUDE_DIR NAMES nanolib.h PATHS nsl_lib/include REQUIRED)
 # OS별 라이브러리 경로 자동 선택
@@ -33,7 +33,7 @@ elseif(APPLE)
         PATHS ${CMAKE_CURRENT_SOURCE_DIR}/nsl_lib/lib/mac-12.0.5/shared
         REQUIRED
     )
-
+	add_compile_options(-Wno-deprecated-declarations)
 elseif(UNIX)
     # 리눅스 (x86/aarch 구분 필요 시 CMAKE_SYSTEM_PROCESSOR 사용)
     if(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|arm64")
@@ -52,6 +52,7 @@ elseif(UNIX)
         )
     endif()
 
+	add_compile_options(-Wno-deprecated-declarations)
 else()
     message(FATAL_ERROR "Unsupported platform")
 endif()
@@ -60,15 +61,21 @@ endif()
 #find_library(NSL_LIB_PATH NAMES nanolib PATHS nsl_lib/lib/aarch-7.5/shared REQUIRED)
 #find_library(NSL_LIB_PATH NAMES nanolib PATHS nsl_lib/lib/windows/shared REQUIRED)
 
-add_compile_options(-Wno-deprecated-declarations)
 
 add_executable(nslApp main.cpp)
 
 if (BUILD_PCL)
-target_link_libraries(nslApp PRIVATE ${NSL_LIB_PATH} ${OpenCV_LIBS} ${PCL_LIBRARIES} pthread)
+target_link_libraries(nslApp PRIVATE ${NSL_LIB_PATH} ${OpenCV_LIBS} ${PCL_LIBRARIES} Threads::Threads)
 target_include_directories(nslApp PRIVATE ${NSL_LIB_INCLUDE_DIR} ${PCL_INCLUDE_DIRS})
 else()
-target_link_libraries(nslApp PRIVATE ${NSL_LIB_PATH} ${OpenCV_LIBS} pthread)
+target_link_libraries(nslApp PRIVATE ${NSL_LIB_PATH} ${OpenCV_LIBS} Threads::Threads)
 target_include_directories(nslApp PRIVATE ${NSL_LIB_INCLUDE_DIR})
 endif()
 
+if (WIN32)
+    add_custom_command(TARGET nslApp POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${NSL_LIB_PATH}/../nanolib.dll"
+            $<TARGET_FILE_DIR:nslApp>
+    )
+endif()
