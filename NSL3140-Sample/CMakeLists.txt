@@ -33,7 +33,7 @@ elseif(APPLE)
         PATHS ${CMAKE_CURRENT_SOURCE_DIR}/nsl_lib/lib/mac-12.0.5/shared
         REQUIRED
     )
-	add_compile_options(-Wno-deprecated-declarations)
+
 elseif(UNIX)
     # 리눅스 (x86/aarch 구분 필요 시 CMAKE_SYSTEM_PROCESSOR 사용)
     if(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|arm64")
@@ -52,15 +52,20 @@ elseif(UNIX)
         )
     endif()
 
-	add_compile_options(-Wno-deprecated-declarations)
 else()
     message(FATAL_ERROR "Unsupported platform")
 endif()
-#find_library(NSL_LIB_PATH NAMES nanolib PATHS nsl_lib/lib/mac-12.0.5/shared REQUIRED)
-#find_library(NSL_LIB_PATH NAMES nanolib PATHS nsl_lib/lib/linux-7.5/shared REQUIRED)
-#find_library(NSL_LIB_PATH NAMES nanolib PATHS nsl_lib/lib/aarch-7.5/shared REQUIRED)
-#find_library(NSL_LIB_PATH NAMES nanolib PATHS nsl_lib/lib/windows/shared REQUIRED)
 
+if(WIN32)
+add_compile_options(/W4 /O2)
+else()
+add_compile_options(
+    -Wall
+    -Wextra
+    -O2
+    -Wno-deprecated-declarations
+)
+endif()
 
 add_executable(nslApp main.cpp)
 

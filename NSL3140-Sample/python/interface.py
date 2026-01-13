@@ -214,12 +214,14 @@ class NslConfig(ctypes.Structure):
         ("grayscaleIlluminationOpt", ctypes.c_int),
     ]
     
-class NslROI(ctypes.Structure):
+class NslAutoIntROI(ctypes.Structure):
     _fields_ = [
         ("x_start", c_int),
         ("y_start", c_int),
         ("x_end", c_int),
-        ("y_end", c_int)
+        ("y_end", c_int),
+        ("max_overflow", c_int),
+        ("min_intTime", c_int)
     ]
     
 # NslVec3b structure in nanolib.h
@@ -358,7 +360,7 @@ class NanoLidar:
         _nsl.nsl_getAmplitudeColor.argtypes = [c_int]
         _nsl.nsl_getAmplitudeColor.restype  = NslVec3b
         
-        _nsl.nsl_setAutoIntegrationTime.argtypes = [c_int, POINTER(NslROI), c_int]
+        _nsl.nsl_setAutoIntegrationTime.argtypes = [c_int, POINTER(NslAutoIntROI), c_int]
         _nsl.nsl_setAutoIntegrationTime.restype  = c_int
 
         _nsl.nsl_getAutoIntegrationTime.argtypes = [c_int, POINTER(c_int), POINTER(c_int), POINTER(c_int)]
@@ -556,6 +558,9 @@ class NanoLidar:
                   self.cfg.edgeThresholdValue,
                   self.cfg.interferenceDetectionLimitValue,
                   self.toString_FUNCTION_OPTIONS(self.cfg.interferenceDetectionLastValueOpt)))
+
+        print("3D edge filter theshold = {0}".format(self.cfg.edgeThresholdValue3D))
+
 
         print("UDP speed = {0}".format(self.toString_UDP_SPEED_OPTIONS(self.cfg.udpSpeedOpt)))
         print("frame rate = {0}".format(self.toString_FRAME_RATE_OPTIONS(self.cfg.frameRateOpt)))

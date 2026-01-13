@@ -63,11 +63,13 @@ class ViewerInfo:
         #--------------------------------------
         # Auto integration Time
         self.autoIntRoiEnable = interface.FUNC_OFF
-        self.autoIntRoi = interface.NslROI()
+        self.autoIntRoi = interface.NslAutoIntROI()
         self.autoIntRoi.x_start = 40
         self.autoIntRoi.y_start = 70
         self.autoIntRoi.x_end = 279
         self.autoIntRoi.y_end = 169
+        self.autoIntRoi.max_overflow = 100	# minimum 10
+        self.autoIntRoi.min_intTime = 100 # minimum 100
 
         if interface.current_os == "Windows":
             self.devName = self.find_ports_by_vid_pid("1FC9", "0094")
@@ -231,6 +233,10 @@ def addDistanceInfo(distMat, frame, lidarWidth, lidarHeight, scaleSize):
         cv2.rectangle(distMat, (x1, y1), (x2, y2), (0, 255, 0), 2)
         lidar.get_auto_integration_time(onoff, currentTime, overflowCnt);
         int_caption = "Int <{}, {}, {}, {}>, Overflow {}".format(currentTime.value, lidar.get_nsl_config().integrationTime3DHdr1, lidar.get_nsl_config().integrationTime3DHdr2, lidar.get_nsl_config().integrationTimeGrayScale, overflowCnt.value) 
+        
+        if onoff.value == interface.FUNC_OFF:
+            lidar.set_auto_integration_time(viewerInfo.autoIntRoi, viewerInfo.autoIntRoiEnable)
+
     else:
         int_caption = "Int <{}, {}, {}, {}>".format(lidar.get_nsl_config().integrationTime3D, lidar.get_nsl_config().integrationTime3DHdr1, lidar.get_nsl_config().integrationTime3DHdr2, lidar.get_nsl_config().integrationTimeGrayScale) 
 
@@ -514,17 +520,17 @@ if __name__ == "__main__":
     사용법:
       python main.py 필요시 IP/모드/3D 사용 여부를 수정하세요.
     """
-    lidar = interface.NanoLidar(viewerInfo.ipAddress, viewerInfo.lensType, viewerInfo.lidarAngle)
+    lidar = interface.NanoLidar(viewerInfo.ipAddress, viewerInfo.lensType, viewerInfo.lidarAngle, interface.FUNC_ON)
     lidar.set_filters(interface.FUNC_ON, interface.FUNC_ON, 300, 200, 0, 0, interface.FUNC_OFF)
     lidar.set_3d_filter(150)
-    lidar.set_auto_integration_time(viewerInfo.autoIntRoi, viewerInfo.autoIntRoiEnable)
-    lidar.set_color_range(interface.MAX_DISTANCE_12MHZ, interface.MAX_GRAYSCALE_VALUE, interface.FUNC_OFF)
+    lidar.set_color_range(interface.MAX_DISTANCE_12MHZ, interface.MAX_GRAYSCALE_VALUE, interface.FUNC_ON)
 #    lidar.set_frame_rate(interface.FRAME_15FPS)
 #    lidar.set_modulation(interface.MOD_24Mhz, interface.MOD_CH0, interface.FUNC_OFF)
 #    lidar.set_dual_beam(interface.DB_3MHZ, interface.DB_CORRECTION)
 #    lidar.set_intetration_time(1000, 50, 0, 100)
 #    lidar.set_hdr_mode(interface.HDR_NONE_MODE) #HDR_TEMPORAL_MODE, HDR_SPATIAL_MODE, HDR_NONE_MODE
-    lidar.printConfiguration();
+#    lidar.set_auto_integration_time(viewerInfo.autoIntRoi, viewerInfo.autoIntRoiEnable)
+    lidar.printConfiguration()
 
     # --- GUI 초기화 ---
     if lidar.get_nsl_config().lidarType == interface.TYPE_B:
