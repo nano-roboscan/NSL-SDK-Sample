@@ -137,7 +137,7 @@ typedef struct ViewerInfo_
 		autoIntRoi.y_end = 169;
 		autoIntRoi.max_overflow = 100;	// minimum 10
 		autoIntRoi.min_intTime = 100; // minimum 100
-		autoIntRoiEnable = FUNCTION_OPTIONS::FUNC_ON;
+		autoIntRoiEnable = FUNCTION_OPTIONS::FUNC_OFF;
 
 		memset(&nslConfig, 0, sizeof(NslConfig));
 		nslConfig.lidarAngle = 0;
@@ -676,8 +676,6 @@ void processPointCloud(NslPCD *ptNslPCD)
 	gtViewerInfo.yMax = ptNslPCD->roiYMax;
 	gtViewerInfo.area_inCount = 0;
 
-	printf("rgb = %d, lidar = %d\n", ptNslPCD->includeRgb, ptNslPCD->includeLidar);
-	
 	if( ptNslPCD->includeRgb )
 	{
 		int totalPixels = NSL_RGB_IMAGE_HEIGHT * NSL_RGB_IMAGE_WIDTH;
