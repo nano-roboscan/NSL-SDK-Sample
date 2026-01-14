@@ -792,6 +792,7 @@ void processPointCloud(NslPCD *ptNslPCD)
 			}
 			else{
 				sprintf(distanceViewName,"Distance 2D <%d>", handle);
+				concatBuffer = imageDistance.clone();
 			}
 
 			cv::resize( concatBuffer, resizeBuffer, cv::Size( distanceWidth, distanceHeight ), 0, 0, INTER_LINEAR );
