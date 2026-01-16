@@ -87,4 +87,8 @@ if (WIN32)
             "${NSL_DLL_PATH}"
             $<TARGET_FILE_DIR:nslApp>
     )
+elseif(APPLE)
+	target_link_options(nslApp PRIVATE
+        "-Wl,-rpath,@executable_path/nsl_lib/lib/mac-12.0.5/shared"
+    )
 endif()

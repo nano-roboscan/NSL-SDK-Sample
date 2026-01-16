@@ -142,7 +142,7 @@ typedef struct ViewerInfo_
 		memset(&nslConfig, 0, sizeof(NslConfig));
 		nslConfig.lidarAngle = 0;
 		nslConfig.lensType = NslOption::LENS_TYPE::LENS_SF;
-		operationMode = OPERATION_MODE_OPTIONS::DISTANCE_AMPLITUDE_MODE;
+		operationMode = OPERATION_MODE_OPTIONS::RGB_DISTANCE_MODE;
 		
 		if( isRgbCommand() ){
 			rgb.resize(NSL_RGB_IMAGE_WIDTH * NSL_RGB_IMAGE_HEIGHT);	
@@ -150,9 +150,11 @@ typedef struct ViewerInfo_
 
 		latestFrame = std::make_unique<NslPCD>();
 		
-		//sprintf(ipAddress,"/dev/ttyNsl3140");
-		//sprintf(ipAddress,"\\\\.\\COM8");
-		sprintf(ipAddress,"192.168.0.220");
+//		sprintf(ipAddress,"/dev/ttyNsl3140");		// virtual com device 
+//		sprintf(ipAddress,"\\\\.\\COM8");		// virtual com device 
+//		sprintf(ipAddress,"");					// Vendor specific device 
+		sprintf(ipAddress,"192.168.0.220");		// Network device
+
 	}
 
 	bool isRgbCommand()
@@ -255,6 +257,8 @@ void drawPointCloud()
 
 void mouseCallbackCV(int event, int x, int y, int flags, void* user_data)
 {
+	(void)flags;
+	(void)user_data;
 	if (event == EVENT_LBUTTONUP)
 	{
 		gtViewerInfo.mouseX = x;
@@ -344,6 +348,7 @@ void timeDelay(int milli)
 
 void timeCheckThread(int void_data)
 {
+	(void)void_data;
 	while( gtViewerInfo.mainRunning != 0 ){
 		timeDelay(1000);
 		int count = gtViewerInfo.frameCount;
@@ -509,7 +514,7 @@ void addDistanceInfo(Mat &distMat, Mat &finalBuffer, NslPCD *ptNslPCD, int lidar
 	int viewer_xpos = gtViewerInfo.mouseX;
 	int viewer_ypos = gtViewerInfo.mouseY;
 	float textSize = 0.8f;
-	int xMin = ptNslPCD->roiXMin;
+//	int xMin = ptNslPCD->roiXMin;
 	int yMin = ptNslPCD->roiYMin;
 	int xpos = viewer_xpos/scaleSize;
 	int ypos = viewer_ypos/scaleSize;
@@ -553,7 +558,6 @@ void addDistanceInfo(Mat &distMat, Mat &finalBuffer, NslPCD *ptNslPCD, int lidar
 		string dist3D_caption;
 		string info_caption;
 
-		int distance2D = ptNslPCD->distance2D[ypos][xpos];
 		double distance3D = ptNslPCD->distance3D[OUT_Z][ypos][xpos];
 		if( distance3D > NSL_LIMIT_FOR_VALID_DATA ){
 

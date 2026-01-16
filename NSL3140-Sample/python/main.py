@@ -58,7 +58,7 @@ class ViewerInfo:
         self.area_start              = 0
         self.area_end                = 5000
         self.area_inCount            = 0
-        self.area_enable             = False
+        self.area_enable             = True
         
         #--------------------------------------
         # Auto integration Time
