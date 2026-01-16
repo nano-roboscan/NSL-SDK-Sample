@@ -142,7 +142,7 @@ typedef struct ViewerInfo_
 		memset(&nslConfig, 0, sizeof(NslConfig));
 		nslConfig.lidarAngle = 0;
 		nslConfig.lensType = NslOption::LENS_TYPE::LENS_SF;
-		operationMode = OPERATION_MODE_OPTIONS::RGB_DISTANCE_MODE;
+		operationMode = OPERATION_MODE_OPTIONS::DISTANCE_AMPLITUDE_MODE;
 		
 		if( isRgbCommand() ){
 			rgb.resize(NSL_RGB_IMAGE_WIDTH * NSL_RGB_IMAGE_HEIGHT);	
