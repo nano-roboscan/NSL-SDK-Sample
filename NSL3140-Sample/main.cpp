@@ -142,6 +142,7 @@ typedef struct ViewerInfo_
 		memset(&nslConfig, 0, sizeof(NslConfig));
 		nslConfig.lidarAngle = 0;
 		nslConfig.lensType = NslOption::LENS_TYPE::LENS_SF;
+		//operationMode = OPERATION_MODE_OPTIONS::RGB_DISTANCE_MODE;
 		operationMode = OPERATION_MODE_OPTIONS::DISTANCE_AMPLITUDE_MODE;
 		
 		if( isRgbCommand() ){
@@ -150,9 +151,9 @@ typedef struct ViewerInfo_
 
 		latestFrame = std::make_unique<NslPCD>();
 		
-//		sprintf(ipAddress,"/dev/ttyNsl3140");		// virtual com device 
-//		sprintf(ipAddress,"\\\\.\\COM8");		// virtual com device 
-//		sprintf(ipAddress,"");					// Vendor specific device 
+//		sprintf(ipAddress,"/dev/ttyNsl3140");	// virtual com device
+//		sprintf(ipAddress,"\\\\.\\COM8");		// virtual com device
+//		sprintf(ipAddress,"");					// Vendor specific device
 		sprintf(ipAddress,"192.168.0.220");		// Network device
 
 	}
@@ -301,6 +302,9 @@ void printConfiguration()
 
 	printf("UDP speed = %s\n", toString(gtViewerInfo.nslConfig.udpSpeedOpt));
 	printf("frame rate = %s\n", toString(gtViewerInfo.nslConfig.frameRateOpt));
+
+	unsigned int sdk_version = nsl_getSdkVersion(0);
+	printf("sdk version = %d.%d\n", sdk_version>>16&0xFFFF, sdk_version&0xFFFF);
 
 	printf("------------------------------------------------------------------------\n");
 }
