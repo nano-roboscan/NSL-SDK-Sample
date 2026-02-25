@@ -19,10 +19,14 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\main.cpp" />
+    <ClInclude Include="..\..\main.h" />
+    <ClInclude Include="..\..\nsl_lib\include\nanolib.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\nsl_lib\include\nanolib.h" />
+    <ClCompile Include="..\..\log.cpp" />
+    <ClCompile Include="..\..\main.cpp" />
+    <ClCompile Include="..\..\pcl.cpp" />
+    <ClCompile Include="..\..\util.cpp" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>
@@ -84,6 +88,7 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
+    <TargetName>nsl_sample</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>

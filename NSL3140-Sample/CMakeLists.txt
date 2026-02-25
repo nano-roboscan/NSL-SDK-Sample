@@ -67,7 +67,7 @@ add_compile_options(
 )
 endif()
 
-add_executable(nslApp main.cpp)
+add_executable(nslApp main.cpp pcl.cpp util.cpp log.cpp)
 
 if (BUILD_PCL)
 target_link_libraries(nslApp PRIVATE ${NSL_LIB_PATH} ${OpenCV_LIBS} ${PCL_LIBRARIES} Threads::Threads)
