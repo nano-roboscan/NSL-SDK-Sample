@@ -10,6 +10,8 @@ NSL2206-SDK와 NSL3140-SDK library 사용 예제 입니다.
 - PCL 라이브러리를 설치한 경우 main.h의 __USED_PCL_LIBLARY__ 활성화 후 사용하세요.
 - cmake를 사용하여 프로젝트 생성 시 설치된 opencv_library를 함께 사용하세요.
 ```
+  $ mkdir build
+  $ cd build
   $ cmake .. -DOpenCV_DIR=D:\git-hub\OpenCv454-LIbrary\opencv_library\x64\vc16\lib
 ```
 
