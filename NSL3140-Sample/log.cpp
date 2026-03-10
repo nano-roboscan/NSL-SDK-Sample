@@ -101,7 +101,7 @@ void saveIndex(const std::string& filePath, const std::string& str)
 	}
 }
 
-void createDirectory() {
+void createLogDirectory() {
 #ifdef _WINDOWS
     CreateDirectoryA(LOG_FOLDER, nullptr);
 #else

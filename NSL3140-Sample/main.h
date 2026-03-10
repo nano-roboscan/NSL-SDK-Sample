@@ -27,6 +27,7 @@
 #endif
 
 #include <opencv2/opencv.hpp>
+#include <chrono>
 
 
 
@@ -58,6 +59,7 @@ typedef struct ViewerInfo_
 	int		yMin;
 	int 		yMax;
 	bool	startLog;
+	bool	streamingMode;
 	OPERATION_MODE_OPTIONS 	operationMode;
 
 	// for Lidar
@@ -92,6 +94,7 @@ typedef struct ViewerInfo_
 		mainRunning = 1;
 		mouseX = -1;
 		mouseY = -1;
+		streamingMode = true;
 
 		area_enable = true; // true : area display, false : all display
 		area_left = -800;// -800.0f; // mm
@@ -157,7 +160,7 @@ void addPoint(pcl::PointXYZRGB point);
 void saveDataPCD(NslPCD *ptNslPCD, const std::string& filePath);
 void saveRGB(NslPCD *ptNslPCD, const std::string& filePath);
 void saveIndex(const std::string& filePath, const std::string& str);
-void createDirectory() ;
+void createLogDirectory() ;
 void logData(NslPCD *ptNslPCD);
 
 void mouseCallbackCV(int event, int x, int y, int flags, void* user_data);

@@ -18,33 +18,6 @@ VIEWER_INFO	gtViewerInfo;
 
 /////////////////////////////////// function /////////////////////////////////////////////////////
 /**
- * @brief Read lidar & rgb data
- * 
- * @return bool 
- */
-bool CaptureData()
-{
-	if( gtViewerInfo.isRgbCommand() ){
-		if( nsl_getPointCloudRgbData(gtViewerInfo.handle, gtViewerInfo.latestFrame.get(), gtViewerInfo.rgb.data(), 1000) == NSL_ERROR_TYPE::NSL_SUCCESS )
-		{
-			gtViewerInfo.frameCount++;
-			return true;
-		}
-	}
-	else{
-		if( nsl_getPointCloudData(gtViewerInfo.handle, gtViewerInfo.latestFrame.get(), 1000) == NSL_ERROR_TYPE::NSL_SUCCESS )
-		{
-			gtViewerInfo.frameCount++;
-			return true;
-		}
-	}
-
-	return false;
-}
-
-
-
-/**
  * @brief Point cloud data to image conversion function
  * 
  * @param handleIndex : handle index by nsl_open()
@@ -232,6 +205,32 @@ void processPointCloud(NslPCD *ptNslPCD)
 
 }
 
+/**
+ * @brief Read lidar & rgb data
+ * 
+ * @return bool 
+ */
+bool CaptureData()
+{
+	if( gtViewerInfo.isRgbCommand() ){
+		if( nsl_getPointCloudRgbData(gtViewerInfo.handle, gtViewerInfo.latestFrame.get(), gtViewerInfo.rgb.data(), 1000) == NSL_ERROR_TYPE::NSL_SUCCESS )
+		{
+			gtViewerInfo.frameCount++;
+			return true;
+		}
+	}
+	else{
+		if( nsl_getPointCloudData(gtViewerInfo.handle, gtViewerInfo.latestFrame.get(), 1000) == NSL_ERROR_TYPE::NSL_SUCCESS )
+		{
+			gtViewerInfo.frameCount++;
+			return true;
+		}
+	}
+
+	return false;
+}
+
+
 
 //////////////////////////////////// main function /////////////////////////////////////////////
 
@@ -274,7 +273,7 @@ int main(int argc, char *argv[])
 #endif	
 	timeThread = thread(timeCheckThread, 0);
 
-	createDirectory();
+	createLogDirectory();
 
 	gtViewerInfo.nslConfig.lidarAngle = 0;
 	gtViewerInfo.nslConfig.lensType = NslOption::LENS_TYPE::LENS_SF;
@@ -307,12 +306,17 @@ int main(int argc, char *argv[])
 	nsl_setColorRange(MAX_DISTANCE_12MHZ, MAX_GRAYSCALE_VALUE, NslOption::FUNCTION_OPTIONS::FUNC_ON);
 	nsl_getCurrentConfig(gtViewerInfo.handle, &gtViewerInfo.nslConfig);
 	printConfiguration();	
-	
-	nsl_streamingOn(gtViewerInfo.handle, gtViewerInfo.operationMode);
+
+	if( !gtViewerInfo.streamingMode )
+		nsl_requestSingleFrame(gtViewerInfo.handle, gtViewerInfo.operationMode);
+	else
+		nsl_streamingOn(gtViewerInfo.handle, gtViewerInfo.operationMode);
 
 	while( gtViewerInfo.mainRunning != 0 )
 	{
 		if( CaptureData() ){
+			if( !gtViewerInfo.streamingMode )
+				nsl_requestSingleFrame(gtViewerInfo.handle, gtViewerInfo.operationMode);
 			processPointCloud(gtViewerInfo.latestFrame.get());
 		}
 
@@ -338,5 +342,5 @@ int main(int argc, char *argv[])
 	cv::destroyAllWindows();
 	printf("end sample main\n");
 	
-    return 0;
+	return 0;
 }
