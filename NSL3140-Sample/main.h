@@ -48,6 +48,7 @@ typedef struct ViewerInfo_
 	int		mouseX;
 	int		mouseY;
 	int 		frameCount;
+	int 		oneSecond;
 	int 		drawframeCount;
 	char 	ipAddress[20];
 	double	temperature;
@@ -108,6 +109,7 @@ typedef struct ViewerInfo_
 #ifdef __USED_PCL_LIBLARY__
 		cout << "PCL Version: " << PCL_VERSION_PRETTY << endl;
 #endif
+		oneSecond = 0;
 		frameCount = 0;
 		drawframeCount = 0;
 		temperature = 0;

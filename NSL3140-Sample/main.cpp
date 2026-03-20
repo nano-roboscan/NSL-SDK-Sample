@@ -305,7 +305,9 @@ int main(int argc, char *argv[])
 	nsl_set3DFilter(gtViewerInfo.handle, 100);
 	nsl_setColorRange(MAX_DISTANCE_12MHZ, MAX_GRAYSCALE_VALUE, NslOption::FUNCTION_OPTIONS::FUNC_ON);
 	nsl_getCurrentConfig(gtViewerInfo.handle, &gtViewerInfo.nslConfig);
-	printConfiguration();	
+	printConfiguration();
+
+	//gtViewerInfo.streamingMode = false;
 
 	if( !gtViewerInfo.streamingMode )
 		nsl_requestSingleFrame(gtViewerInfo.handle, gtViewerInfo.operationMode);
@@ -315,14 +317,16 @@ int main(int argc, char *argv[])
 	while( gtViewerInfo.mainRunning != 0 )
 	{
 		if( CaptureData() ){
-			if( !gtViewerInfo.streamingMode )
-				nsl_requestSingleFrame(gtViewerInfo.handle, gtViewerInfo.operationMode);
-			processPointCloud(gtViewerInfo.latestFrame.get());
+			processPointCloud(gtViewerInfo.latestFrame.get());	// multi frame viewer
+			gtViewerInfo.oneSecond = 0;
+		}
+		else if( !gtViewerInfo.streamingMode && gtViewerInfo.oneSecond > 1 ) {
+			processPointCloud(gtViewerInfo.latestFrame.get()); // one frame viewer
+			gtViewerInfo.oneSecond = 1; 
 		}
 
-		int key = waitKey(1);
+		int key = waitKey(10);
 		if( key == 27 ){ // ESC
-			gtViewerInfo.mainRunning = 0;
 			break;
 		}
 		else if( key == 'd' ){
@@ -334,6 +338,7 @@ int main(int argc, char *argv[])
 		//usleep(100);
 	}
 
+	gtViewerInfo.mainRunning = 0;
 	nsl_streamingOff(gtViewerInfo.handle); // off
 	nsl_close();
 
@@ -344,3 +349,4 @@ int main(int argc, char *argv[])
 	
 	return 0;
 }
+

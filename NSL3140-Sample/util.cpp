@@ -252,6 +252,7 @@ void timeCheckThread(int void_data)
 		int count = gtViewerInfo.frameCount;
 		gtViewerInfo.drawframeCount = count;
 		gtViewerInfo.frameCount = 0;
+		gtViewerInfo.oneSecond ++;
 
 		printf("### [%s][%d<%d:%d> x %d<%d:%d>] :: frame count = %d, %.2f'C ###\n", toString(gtViewerInfo.operationMode), gtViewerInfo.width, gtViewerInfo.xMin, gtViewerInfo.xMax, gtViewerInfo.height, gtViewerInfo.yMin, gtViewerInfo.yMax, count, gtViewerInfo.temperature);
 	}
