@@ -343,14 +343,14 @@ void processPointCloud(NslPCD *ptNslPCD)
 bool CaptureData()
 {
 	if( gtViewerInfo.isRgbCommand() ){
-		if( nsl_getPointCloudRgbData(gtViewerInfo.handle, gtViewerInfo.latestFrame.get(), gtViewerInfo.rgb.data(), 1000) == NSL_ERROR_TYPE::NSL_SUCCESS )
+		if( nsl_getPointCloudRgbData(gtViewerInfo.handle, gtViewerInfo.latestFrame.get(), gtViewerInfo.rgb.data(), 0) == NSL_ERROR_TYPE::NSL_SUCCESS )
 		{
 			gtViewerInfo.frameCount++;
 			return true;
 		}
 	}
 	else{
-		if( nsl_getPointCloudData(gtViewerInfo.handle, gtViewerInfo.latestFrame.get(), 1000) == NSL_ERROR_TYPE::NSL_SUCCESS )
+		if( nsl_getPointCloudData(gtViewerInfo.handle, gtViewerInfo.latestFrame.get(), 0) == NSL_ERROR_TYPE::NSL_SUCCESS )
 		{
 			gtViewerInfo.frameCount++;
 			return true;
