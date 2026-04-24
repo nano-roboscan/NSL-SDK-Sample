@@ -163,7 +163,23 @@ NSL_ANSWER_ERROR = -7
 NSL_INVALID_PARAMETER = -8
 
 
-
+# ImuData structure in nanolib.h
+class ImuData(ctypes.Structure):
+    _fields_ = [
+        ("ax", ctypes.c_float),
+        ("ay", ctypes.c_float),
+        ("az", ctypes.c_float),
+        ("gx", ctypes.c_float),
+        ("gy", ctypes.c_float),
+        ("gz", ctypes.c_float),
+        ("qw", ctypes.c_float),
+        ("qx", ctypes.c_float),
+        ("qy", ctypes.c_float),
+        ("qz", ctypes.c_float),
+        ("roll", ctypes.c_float),
+        ("pitch", ctypes.c_float),
+        ("yaw", ctypes.c_float)
+    ]    
 
 # NslConfig structure in nanolib.h
 class NslConfig(ctypes.Structure):
@@ -211,7 +227,7 @@ class NslConfig(ctypes.Structure):
         ("edgeThresholdValue3D", ctypes.c_int),
         ("udpSpeedOpt", ctypes.c_int),
         ("frameRateOpt", ctypes.c_int),
-        ("grayscaleIlluminationOpt", ctypes.c_int),
+        ("grayscaleIlluminationOpt", ctypes.c_int)
     ]
     
 class NslAutoIntROI(ctypes.Structure):
@@ -229,7 +245,7 @@ class NslVec3b(ctypes.Structure):
     _fields_ = [
         ("b", c_ubyte),
         ("g", c_ubyte),
-        ("r", c_ubyte),
+        ("r", c_ubyte)
     ]
     
     @property
@@ -238,7 +254,7 @@ class NslVec3b(ctypes.Structure):
             'descr': [('', np.uint8)],
             'shape': (3,),
             'typestr': np.dtype(np.uint8).str,
-            'data': (ctypes.addressof(self), False),
+            'data': (ctypes.addressof(self), False)
         }
    
 # NslPCD structure in nanolib.h
@@ -249,6 +265,7 @@ class NslPCD(Structure):
         ("temperature", c_double),
         ("includeRgb", c_bool),
         ("includeLidar", c_bool),
+        ("includeImu", c_bool),
         ("width", c_int),
         ("height", c_int),
         ("roiXMin", c_int),
@@ -261,6 +278,7 @@ class NslPCD(Structure):
         ("amplitude", c_int * (NSL_LIDAR_TYPE_B_HEIGHT  * NSL_LIDAR_TYPE_B_WIDTH)),
         ("distance2D", c_int * (NSL_LIDAR_TYPE_B_HEIGHT  * NSL_LIDAR_TYPE_B_WIDTH)),
         ("distance3D", c_double * (MAX_OUT * NSL_LIDAR_TYPE_B_HEIGHT  * NSL_LIDAR_TYPE_B_WIDTH)),
+        ("imuData", ImuData)
     ]
 
     def __init__(self, *args, **kwargs):

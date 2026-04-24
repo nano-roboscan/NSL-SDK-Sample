@@ -22,7 +22,7 @@ import time
 from datetime import datetime
 import numpy as np
 import interface
-
+import math
 
 # -------------------------------------- class --------------------------------------------------#
 # --- viewerInfo ---
@@ -46,7 +46,7 @@ class ViewerInfo:
         # lidar mode
         self.lensType = interface.LENS_SF
         self.lidarAngle = 0        
-        self.ipAddress = "192.168.0.220"
+        self.ipAddress = "192.168.0.221"
         #self.ipAddress = "\\\\.\\COM12"
         self.operationMode = interface.DISTANCE_AMPLITUDE_MODE
         # ----------------------------------
@@ -58,7 +58,7 @@ class ViewerInfo:
         self.area_start              = 0
         self.area_end                = 5000
         self.area_inCount            = 0
-        self.area_enable             = True
+        self.area_enable             = False
         
         #--------------------------------------
         # Auto integration Time
@@ -70,6 +70,13 @@ class ViewerInfo:
         self.autoIntRoi.y_end = 169
         self.autoIntRoi.max_overflow = 100	# minimum 10
         self.autoIntRoi.min_intTime = 100 # minimum 100
+        
+        #--------------------------------------
+        # IMU data
+        self.bImuData = False
+        self.roll = 0
+        self.pitch = 0
+        self.yaw = 0
 
         if interface.current_os == "Windows":
             self.devName = self.find_ports_by_vid_pid("1FC9", "0094")
@@ -207,7 +214,88 @@ def mouseCallbackCV(event, x, y, flags, param):
     if event == cv2.EVENT_LBUTTONUP:
         viewerInfo.mouseX = x
         viewerInfo.mouseY = y
-        
+
+def drawCube(imageMat, roll, pitch):
+    roi_size = imageMat.shape[1] // 15
+    # roi_size = 100
+
+    x = imageMat.shape[1] - roi_size - 5
+    y = imageMat.shape[0] - roi_size - 5
+
+    roi = imageMat[y:y+roi_size, x:x+roi_size]
+
+    if roi.size == 0:
+        return
+
+    # 배경
+    roi[:] = (50, 50, 50)
+    cv2.rectangle(imageMat, (x, y), (x+roi_size, y+roi_size), (200, 200, 200), 1)
+
+    # 3D 정육면체 좌표
+    objectPoints = np.array([
+        [-1, -1, -1],  # 0
+        [ 1, -1, -1],  # 1
+        [ 1,  1, -1],  # 2
+        [-1,  1, -1],  # 3
+        [-1, -1,  1],  # 4
+        [ 1, -1,  1],  # 5
+        [ 1,  1,  1],  # 6
+        [-1,  1,  1],  # 7
+    ], dtype=np.float32)
+
+    # 카메라 내부 파라미터
+    cx = roi.shape[1] / 2.0
+    cy = roi.shape[0] / 2.0
+    focalLength = roi_size * 0.66
+
+    K = np.array([
+        [focalLength, 0, cx],
+        [0, focalLength, cy],
+        [0, 0, 1]
+    ], dtype=np.float64)
+
+    distCoeffs = np.zeros((4, 1), dtype=np.float64)
+
+    # roll, pitch -> rvec
+    rvec = np.array([
+        pitch * np.pi / 180.0,
+        0,
+        roll * np.pi / 180.0
+    ], dtype=np.float64)
+
+    tvec = np.array([0, 0, 3], dtype=np.float64)
+
+    # 투영
+    imagePoints, _ = cv2.projectPoints(objectPoints, rvec, tvec, K, distCoeffs)
+    imagePoints = imagePoints.reshape(-1, 2)
+
+    if len(imagePoints) >= 8:
+        facePoints = np.array([
+            imagePoints[0],
+            imagePoints[1],
+            imagePoints[5],
+            imagePoints[4]
+        ], dtype=np.int32)
+
+        cv2.fillConvexPoly(roi, facePoints, (0, 100, 255), lineType=cv2.LINE_AA)
+
+    # 엣지
+    edges = [
+        0,1, 1,2, 2,3, 3,0,
+        4,5, 5,6, 6,7, 7,4,
+        0,4, 1,5, 2,6, 3,7
+    ]
+
+    for i in range(0, len(edges), 2):
+        startIdx = edges[i]
+        endIdx = edges[i+1]
+
+        if startIdx < len(imagePoints) and endIdx < len(imagePoints):
+            pt1 = tuple(imagePoints[startIdx].astype(int))
+            pt2 = tuple(imagePoints[endIdx].astype(int))
+            cv2.line(roi, pt1, pt2, (0, 255, 255), 1, cv2.LINE_AA)
+            
+    
 # --- addDistanceInfo ---
 def addDistanceInfo(distMat, frame, lidarWidth, lidarHeight, scaleSize):
     height, width = frame.height, frame.width
@@ -219,6 +307,11 @@ def addDistanceInfo(distMat, frame, lidarWidth, lidarHeight, scaleSize):
     ypos = viewer_ypos // scaleSize if viewer_ypos >= 0 else -1
 
     int_caption = ""
+    imu_caption = "Not Support IMU";
+
+    if viewerInfo.bImuData:
+        imu_caption = "Roll : {:.4f}, Pitch : {:.4f}, Yaw : {:.4f}".format(viewerInfo.roll, viewerInfo.pitch, viewerInfo.yaw)
+        drawCube(distMat, viewerInfo.roll, viewerInfo.pitch);
 
     if viewerInfo.autoIntRoiEnable == interface.FUNC_ON:
         x1 = viewerInfo.autoIntRoi.x_start * scaleSize;
@@ -240,7 +333,7 @@ def addDistanceInfo(distMat, frame, lidarWidth, lidarHeight, scaleSize):
     else:
         int_caption = "Int <{}, {}, {}, {}>".format(lidar.get_nsl_config().integrationTime3D, lidar.get_nsl_config().integrationTime3DHdr1, lidar.get_nsl_config().integrationTime3DHdr2, lidar.get_nsl_config().integrationTimeGrayScale) 
 
-    infoImage = np.full((125, distMat.shape[1], 3), 255, dtype=np.uint8)
+    infoImage = np.full((140, distMat.shape[1], 3), 255, dtype=np.uint8)
 
     if ypos >= yMin and ypos < lidarHeight and xpos >= 0:
         # 십자선 표시
@@ -289,10 +382,12 @@ def addDistanceInfo(distMat, frame, lidarWidth, lidarHeight, scaleSize):
         cv2.putText(infoImage, int_caption, (10, 46), cv2.FONT_HERSHEY_SIMPLEX, textSize, (0,0,0), 1, cv2.LINE_AA);
         cv2.putText(infoImage, dist2D_caption, (10, 70), cv2.FONT_HERSHEY_SIMPLEX, textSize, (0,0,0), 1, cv2.LINE_AA)
         cv2.putText(infoImage, dist3D_caption, (10, 96), cv2.FONT_HERSHEY_SIMPLEX, textSize, (0,0,0), 1, cv2.LINE_AA)
+        cv2.putText(infoImage, imu_caption, (10, 120), cv2.FONT_HERSHEY_SIMPLEX, textSize, (0,0,0), 1, cv2.LINE_AA);
     else:
         info_caption = "{}x{} <{}fps> {:.2f}'C".format(width,height,viewerInfo.drawframeCount,viewerInfo.temperature)
         cv2.putText(infoImage, info_caption, (10, 23), cv2.FONT_HERSHEY_SIMPLEX, textSize, (0,0,0), 1, cv2.LINE_AA)
         cv2.putText(infoImage, int_caption, (10, 46), cv2.FONT_HERSHEY_SIMPLEX, textSize, (0,0,0), 1, cv2.LINE_AA);
+        cv2.putText(infoImage, imu_caption, (10, 69), cv2.FONT_HERSHEY_SIMPLEX, textSize, (0,0,0), 1, cv2.LINE_AA);
 
     distMat = np.vstack((distMat, infoImage))
     return distMat
@@ -369,7 +464,7 @@ def visualize_loop():
         frame1 = interface.NslPCD()
         frames = [frame0, frame1]
         frame_index = 0
-        
+
         while True:
             # ---------- 키 처리 ----------
             k = cv2.waitKey(10) & 0xFF
@@ -383,6 +478,7 @@ def visualize_loop():
             if ret != interface.NSL_SUCCESS:
                 continue
                 
+            viewerInfo.bImuData = False
             viewerInfo.area_inCount = 0
             viewerInfo.temperature  = frames[frame_index].temperature            
 
@@ -393,6 +489,11 @@ def visualize_loop():
             
             # --------- 2D Distance / Amplitude ----------
             # uint8 3채널 BGR 이미지
+            if frames[frame_index].includeImu:
+                viewerInfo.roll = frames[frame_index].imuData.roll
+                viewerInfo.pitch = frames[frame_index].imuData.pitch
+                viewerInfo.yaw = frames[frame_index].imuData.yaw
+                viewerInfo.bImuData = True
                         
             if frames[frame_index].includeLidar:
                 

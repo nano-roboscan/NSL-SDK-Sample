@@ -37,8 +37,10 @@ using namespace std::chrono;
 using namespace NslOption;
 
 
-#define DRAW_POINT_CLOUD	0x01
-#define DRAW_OPENCV_VIEW	0x02
+#define DRAW_POINT_CLOUD		0x01
+#define DRAW_OPENCV_VIEW		0x02
+#define DISTANCE_INFO_HEIGHT	135
+
 
 typedef struct ViewerInfo_
 {
@@ -76,6 +78,10 @@ typedef struct ViewerInfo_
 	float area_end;
 	int area_inCount;
 
+	bool			bImuData;
+	float			roll;
+	float			pitch;
+
 	// Auto Integration time ROI
 	NslAutoIntROI autoIntRoi;	// x_start, x_end :: 0 ~ 319, y_start, y_end :: 0 ~ 239
 	FUNCTION_OPTIONS	autoIntRoiEnable;
@@ -96,6 +102,7 @@ typedef struct ViewerInfo_
 		mouseX = -1;
 		mouseY = -1;
 		streamingMode = true;
+		bImuData = false;
 
 		area_enable = true; // true : area display, false : all display
 		area_left = -800;// -800.0f; // mm
@@ -172,6 +179,9 @@ void setMatrixColor(Mat image, int x, int y, NslVec3b color);
 void addDistanceInfo(Mat &distMat, Mat &finalBuffer, NslPCD *ptNslPCD, int lidarWidth, int lidarHeight, int scaleSize);
 void timeCheckThread(int void_data);
 void printConfiguration();
+void quaternionToEuler(ImuData &imu, float& roll, float& pitch, float& yaw);
+void drawCube(cv::Mat& imageMat, float roll, float pitch) ;
+
 
 #ifdef _WINDOWS
 int findPortsByVidPid(const std::string vid, const std::string pid, char *strPortName);

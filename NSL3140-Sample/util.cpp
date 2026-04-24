@@ -13,7 +13,6 @@
 
 
 /////////////////////////////////// definition /////////////////////////////////////////////////////
-#define DISTANCE_INFO_HEIGHT	120
 
 
 void mouseCallbackCV(int event, int x, int y, int flags, void* user_data)
@@ -135,115 +134,6 @@ void setMatrixColor(Mat image, int x, int y, NslVec3b color)
 }
 
 
-/**
- * @brief openCV draw function
- * 
- * @param distMat : Mat data to be drawn on the screen
- * @param handleIndex : handle index by nsl_open()
- * 
- * @return cv::Mat 
- */
-void addDistanceInfo(Mat &distMat, Mat &finalBuffer, NslPCD *ptNslPCD, int lidarWidth, int lidarHeight, int scaleSize)
-{
-	int width = ptNslPCD->width;
-	int height = ptNslPCD->height;
-	int viewer_xpos = gtViewerInfo.mouseX;
-	int viewer_ypos = gtViewerInfo.mouseY;
-	float textSize = 0.8f;
-//	int xMin = ptNslPCD->roiXMin;
-	int yMin = ptNslPCD->roiYMin;
-	int xpos = viewer_xpos/scaleSize;
-	int ypos = viewer_ypos/scaleSize;
-	string int_caption;
-
-	if( gtViewerInfo.autoIntRoiEnable == FUNCTION_OPTIONS::FUNC_ON ){
-		int x1 = gtViewerInfo.autoIntRoi.x_start * scaleSize;
-		int y1 = gtViewerInfo.autoIntRoi.y_start * scaleSize;
-		int x2 = gtViewerInfo.autoIntRoi.x_end * scaleSize;
-		int y2 = gtViewerInfo.autoIntRoi.y_end * scaleSize;
-
-		rectangle(distMat, Point(x1, y1), Point(x2, y2), Scalar(0, 255, 0), 2);
-
-		FUNCTION_OPTIONS	isEnable;
-		int currentIntTime0;
-		int currentOverflowCnt;
-
-		nsl_getAutoIntegrationTime(gtViewerInfo.handle, &isEnable, &currentIntTime0, &currentOverflowCnt);
-
-		int_caption = format("Int <%d, %d, %d, %d>, Overflow %d", currentIntTime0, gtViewerInfo.nslConfig.integrationTime3DHdr1, gtViewerInfo.nslConfig.integrationTime3DHdr2, gtViewerInfo.nslConfig.integrationTimeGrayScale, currentOverflowCnt);
-		if( isEnable == FUNCTION_OPTIONS::FUNC_OFF ){
-			nsl_setAutoIntegrationTime(gtViewerInfo.handle, &gtViewerInfo.autoIntRoi, gtViewerInfo.autoIntRoiEnable);
-		}
-	}
-	else{
-		int_caption = format("Int <%d, %d, %d, %d>", gtViewerInfo.nslConfig.integrationTime3D, gtViewerInfo.nslConfig.integrationTime3DHdr1, gtViewerInfo.nslConfig.integrationTime3DHdr2, gtViewerInfo.nslConfig.integrationTimeGrayScale);
-	}
-	
-	if( (ypos >= yMin && ypos < lidarHeight)){
-
-		Mat infoImage(DISTANCE_INFO_HEIGHT, distMat.cols, CV_8UC3, Scalar(255, 255, 255));
-
-		line(distMat, Point(viewer_xpos-13, viewer_ypos), Point(viewer_xpos+13, viewer_ypos), Scalar(255, 255, 0), 2);
-		line(distMat, Point(viewer_xpos, viewer_ypos-15), Point(viewer_xpos, viewer_ypos+15), Scalar(255, 255, 0), 2);
-
-		if( xpos >= lidarWidth ){ 
-			xpos -= lidarWidth;
-		}
-
-		string dist2D_caption;
-		string dist3D_caption;
-		string info_caption;
-
-		double distance3D = ptNslPCD->distance3D[OUT_Z][ypos][xpos];
-		if( distance3D > NSL_LIMIT_FOR_VALID_DATA ){
-
-			if( distance3D == NSL_ADC_OVERFLOW )
-				dist2D_caption = format("X:%d,Y:%d ADC_OVERFLOW", xpos, ypos);
-			else if( distance3D == NSL_SATURATION )
-				dist2D_caption = format("X:%d,Y:%d SATURATION", xpos, ypos);
-			else if( distance3D == NSL_BAD_PIXEL )
-				dist2D_caption = format("X:%d,Y:%d BAD_PIXEL", xpos, ypos);
-			else if( distance3D == NSL_INTERFERENCE )
-				dist2D_caption = format("X:%d,Y:%d INTERFERENCE", xpos, ypos);
-			else if( distance3D == NSL_EDGE_DETECTED )
-				dist2D_caption = format("X:%d,Y:%d EDGE_FILTERED", xpos, ypos);
-			else
-				dist2D_caption = format("X:%d,Y:%d LOW_AMPLITUDE", xpos, ypos);
-		}
-		else{
-			if( ptNslPCD->operationMode == OPERATION_MODE_OPTIONS::DISTANCE_AMPLITUDE_MODE || ptNslPCD->operationMode == OPERATION_MODE_OPTIONS::RGB_DISTANCE_AMPLITUDE_MODE ) {
-				dist2D_caption = format("2D X:%d Y:%d %dmm/%dlsb", xpos, ypos, ptNslPCD->distance2D[ypos][xpos], ptNslPCD->amplitude[ypos][xpos]);
-				dist3D_caption = format("3D X:%.1fmm Y:%.1fmm Z:%.1fmm", ptNslPCD->distance3D[OUT_X][ypos][xpos], ptNslPCD->distance3D[OUT_Y][ypos][xpos], ptNslPCD->distance3D[OUT_Z][ypos][xpos]);
-			}
-			else{
-				dist2D_caption = format("2D X:%d Y:%d <%d>mm", xpos, ypos, ptNslPCD->distance2D[ypos][xpos]);
-				dist3D_caption = format("3D X:%.1fmm Y:%.1fmm Z:%.1fmm", ptNslPCD->distance3D[OUT_X][ypos][xpos], ptNslPCD->distance3D[OUT_Y][ypos][xpos], ptNslPCD->distance3D[OUT_Z][ypos][xpos]);
-			}
-		}
-
-		info_caption = format("%s:%dx%d <%dfps> %.2f'C", getDataTypeName(ptNslPCD->operationMode), width, height, gtViewerInfo.drawframeCount, gtViewerInfo.temperature);
-
-		putText(infoImage, info_caption.c_str(), Point(10, 23), FONT_HERSHEY_SIMPLEX, textSize, Scalar(0, 0, 0), 1, cv::LINE_AA);
-		putText(infoImage, int_caption.c_str(), Point(10, 46), FONT_HERSHEY_SIMPLEX, textSize, Scalar(0, 0, 0), 1, cv::LINE_AA);		
-		putText(infoImage, dist2D_caption.c_str(), Point(10, 70), FONT_HERSHEY_SIMPLEX, textSize, Scalar(0, 0, 0), 1, cv::LINE_AA);
-		putText(infoImage, dist3D_caption.c_str(), Point(10, 95), FONT_HERSHEY_SIMPLEX, textSize, Scalar(0, 0, 0), 1, cv::LINE_AA);
-		vconcat(distMat, infoImage, finalBuffer);
-	}
-	else{
-		Mat infoImage(DISTANCE_INFO_HEIGHT, distMat.cols, CV_8UC3, Scalar(255, 255, 255));
-
-		string info_caption = format("%s:%dx%d <%dfps> %.2f'C", getDataTypeName(ptNslPCD->operationMode), width, height, gtViewerInfo.drawframeCount, gtViewerInfo.temperature);
-		putText(infoImage, info_caption.c_str(), Point(10, 23), FONT_HERSHEY_SIMPLEX, textSize, Scalar(0, 0, 0), 1, cv::LINE_AA);		
-		putText(infoImage, int_caption.c_str(), Point(10, 46), FONT_HERSHEY_SIMPLEX, textSize, Scalar(0, 0, 0), 1, cv::LINE_AA);			
-
-		vconcat(distMat, infoImage, finalBuffer);
-	}
-
-	return;
-}
-
-
-
 void timeCheckThread(int void_data)
 {
 	(void)void_data;
@@ -301,7 +191,59 @@ void printConfiguration()
 }
 
 
+void drawCube(cv::Mat& imageMat, float roll, float pitch) 
+{
+	int roiSize = imageMat.cols / 15;
+	cv::Rect roiRect(imageMat.cols - roiSize - 5, imageMat.rows - roiSize - 5, roiSize, roiSize);
+	cv::Mat roi = imageMat(roiRect); 
 
+	roi.setTo(cv::Scalar(50, 50, 50)); 
+	cv::rectangle(imageMat, roiRect, cv::Scalar(200, 200, 200), 1);
+	if (roi.empty()) return;
 
+	std::vector<cv::Point3f> objectPoints;
+	objectPoints.push_back(cv::Point3f(-1, -1, -1)); // 0
+	objectPoints.push_back(cv::Point3f( 1, -1, -1)); // 1
+	objectPoints.push_back(cv::Point3f( 1,	1, -1)); // 2
+	objectPoints.push_back(cv::Point3f(-1,	1, -1)); // 3
+	objectPoints.push_back(cv::Point3f(-1, -1,	1)); // 4
+	objectPoints.push_back(cv::Point3f( 1, -1,	1)); // 5
+	objectPoints.push_back(cv::Point3f( 1,	1,	1)); // 6
+	objectPoints.push_back(cv::Point3f(-1,	1,	1)); // 7
+
+	double cx = roi.cols / 2.0;
+	double cy = roi.rows / 2.0;
+	float focalLength = roiSize * 0.66f;
+
+	cv::Mat K = (cv::Mat_<double>(3, 3) << focalLength, 0, cx, 0, focalLength, cy, 0, 0, 1);
+	cv::Mat distCoeffs = cv::Mat::zeros(4, 1, CV_64F);
+
+	cv::Vec3f rvec(pitch * static_cast<float>(CV_PI) / 180.0f, 0, roll * static_cast<float>(CV_PI) / 180.0f);
+	cv::Vec3f tvec(0, 0, 3);
+
+	std::vector<cv::Point2f> imagePoints;
+	cv::projectPoints(objectPoints, rvec, tvec, K, distCoeffs, imagePoints);
+
+	if (imagePoints.size() >= 8) {
+		std::vector<cv::Point> facePoints;
+		facePoints.push_back(cv::Point((int)imagePoints[0].x, (int)imagePoints[0].y));
+		facePoints.push_back(cv::Point((int)imagePoints[1].x, (int)imagePoints[1].y));
+		facePoints.push_back(cv::Point((int)imagePoints[5].x, (int)imagePoints[5].y));
+		facePoints.push_back(cv::Point((int)imagePoints[4].x, (int)imagePoints[4].y));
+
+		cv::fillConvexPoly(roi, facePoints, cv::Scalar(0, 100, 255), cv::LINE_AA);
+	}
+
+	int edges[] = {0,1, 1,2, 2,3, 3,0, 4,5, 5,6, 6,7, 7,4, 0,4, 1,5, 2,6, 3,7};
+	for (int i = 0; i < 24; i += 2) {
+		int startIdx = edges[i];
+		int endIdx  = edges[i + 1];
+
+		if (startIdx < imagePoints.size() && endIdx < imagePoints.size()) {
+			cv::line(roi, imagePoints[startIdx], imagePoints[endIdx], 
+					 cv::Scalar(0, 255, 255), 1, cv::LINE_AA);
+		}
+	}
+}
 
 

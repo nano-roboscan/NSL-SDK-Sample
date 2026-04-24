@@ -1,6 +1,5 @@
+
 #include "main.h"
-
-
 
 #ifdef __USED_PCL_LIBLARY__
 
@@ -30,7 +29,6 @@ void initPclViewer()
 	vtkSmartPointer<vtkRenderer> renderer = viewer->getRenderWindow()->GetRenderers()->GetFirstRenderer();
 	vtkCamera* camera = renderer->GetActiveCamera();
 	camera->SetClippingRange(0.01, 50.0);  // 1cm ~ 50m
-
 	viewer->addText("NANOSYSTEMS, PointCloud Sample !!!", 30, 30, "nsl-pcl");
 
 	if( gtViewerInfo.area_enable ){
@@ -87,7 +85,8 @@ void drawPointCloud()
 
 void clearCloud()
 {
-	gtViewerInfo.clouds[0]->clear();
+	if(gtViewerInfo.drawView & DRAW_POINT_CLOUD)
+		gtViewerInfo.clouds[0]->clear();
 }
 
 
