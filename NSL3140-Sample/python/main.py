@@ -550,7 +550,7 @@ def visualize_loop():
                     cloud_points_np[valid_mask, 2] = -z_valid / 1000.0
 
                     use_rgb_mapping = frames[frame_index].includeRgb and frames[frame_index].includeYml
-                    print("rgb = %d, %d, %d" % (use_rgb_mapping, frames[frame_index].includeRgb, frames[frame_index].includeYml))
+                    #print("rgb = %d, %d, %d" % (use_rgb_mapping, frames[frame_index].includeRgb, frames[frame_index].includeYml))
                                             
                     if viewerInfo.area_enable:
                         area_mask = (
