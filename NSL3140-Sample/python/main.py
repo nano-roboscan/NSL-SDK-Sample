@@ -46,9 +46,9 @@ class ViewerInfo:
         # lidar mode
         self.lensType = interface.LENS_SF
         self.lidarAngle = 0        
-        self.ipAddress = "192.168.0.221"
+        self.ipAddress = "192.168.0.220"
         #self.ipAddress = "\\\\.\\COM12"
-        self.operationMode = interface.DISTANCE_AMPLITUDE_MODE
+        self.operationMode = interface.RGB_DISTANCE_AMPLITUDE_MODE
         # ----------------------------------
         # 3D area settings
         self.area_left               = -800
@@ -310,7 +310,7 @@ def addDistanceInfo(distMat, frame, lidarWidth, lidarHeight, scaleSize):
     imu_caption = "Not Support IMU";
 
     if viewerInfo.bImuData:
-        imu_caption = "Roll : {:.4f}, Pitch : {:.4f}, Yaw : {:.4f}".format(viewerInfo.roll, viewerInfo.pitch, viewerInfo.yaw)
+        imu_caption = "Roll : {:.4f}, Pitch : {:.4f}".format(viewerInfo.roll, viewerInfo.pitch)
         drawCube(distMat, viewerInfo.roll, viewerInfo.pitch);
 
     if viewerInfo.autoIntRoiEnable == interface.FUNC_ON:
@@ -549,6 +549,9 @@ def visualize_loop():
                     cloud_points_np[valid_mask, 1] = -y_valid / 1000.0
                     cloud_points_np[valid_mask, 2] = -z_valid / 1000.0
 
+                    use_rgb_mapping = frames[frame_index].includeRgb and frames[frame_index].includeYml
+                    print("rgb = %d, %d, %d" % (use_rgb_mapping, frames[frame_index].includeRgb, frames[frame_index].includeYml))
+                                            
                     if viewerInfo.area_enable:
                         area_mask = (
                             (x_valid >= viewerInfo.area_left) &
@@ -562,15 +565,45 @@ def visualize_loop():
                         # 영역 안 포인트 색상
                         if np.any(area_mask):
                             area_indices = valid_indices[area_mask]
-                            z_vals_int = np.clip(z_valid[area_mask].astype(int), 0, interface.NSL_LIMIT_FOR_VALID_DATA - 1)
-                            cloud_colors_np[area_indices, :] = color_3d_lut[z_vals_int]
+                            if use_rgb_mapping:
+                                y_valid_indices = area_indices // lidar_width
+                                x_valid_indices = area_indices % lidar_width
+
+                                rgb_colors = np.zeros((len(area_indices), 3), dtype=np.float64)
+
+                                for i, (x_pos, y_pos) in enumerate(zip(x_valid_indices, y_valid_indices)):
+                                    color_pixel = lidar.get_pixel_at_depth(int(x_pos), int(y_pos))
+                                    rgb_colors[i, 0] = color_pixel.r / 255.0
+                                    rgb_colors[i, 1] = color_pixel.g / 255.0
+                                    rgb_colors[i, 2] = color_pixel.b / 255.0
+                                
+                                cloud_colors_np[area_indices, :] = rgb_colors
+                
+                            else:
+                                z_vals_int = np.clip(z_valid[area_mask].astype(int), 0, interface.NSL_LIMIT_FOR_VALID_DATA - 1)
+                                cloud_colors_np[area_indices, :] = color_3d_lut[z_vals_int]
 
                             viewerInfo.area_inCount = np.sum(area_mask)
                         else:
                             viewerInfo.area_inCount = 0
                     else:
-                        z_vals_int = np.clip(z_valid.astype(int), 0, interface.NSL_LIMIT_FOR_VALID_DATA - 1)
-                        cloud_colors_np[valid_indices, :] = color_3d_lut[z_vals_int]
+                        if use_rgb_mapping:
+                            y_valid_indices = valid_indices // lidar_width
+                            x_valid_indices = valid_indices % lidar_width
+                            
+                            rgb_colors = np.zeros((len(valid_indices), 3), dtype=np.float64)
+                            
+                            for i, (x_pos, y_pos) in enumerate(zip(x_valid_indices, y_valid_indices)):
+                                color_pixel = lidar.get_pixel_at_depth(int(x_pos), int(y_pos))
+                                
+                                rgb_colors[i, 0] = color_pixel.r / 255.0
+                                rgb_colors[i, 1] = color_pixel.g / 255.0
+                                rgb_colors[i, 2] = color_pixel.b / 255.0
+                                
+                            cloud_colors_np[valid_indices, :] = rgb_colors
+                        else:
+                            z_vals_int = np.clip(z_valid.astype(int), 0, interface.NSL_LIMIT_FOR_VALID_DATA - 1)
+                            cloud_colors_np[valid_indices, :] = color_3d_lut[z_vals_int]
                     
                     if first_frame:
                         pcl_cloud.points = o3d.utility.Vector3dVector(cloud_points_np)

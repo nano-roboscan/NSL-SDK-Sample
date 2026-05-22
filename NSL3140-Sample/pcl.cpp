@@ -16,7 +16,7 @@ void initPclViewer()
 	viewer->getRenderWindow()->SetWindowName("NSL PCL 3D Viewer");
 	viewer->addPointCloud<pcl::PointXYZRGB>(cloud, "Viewer pointCloud");
 	viewer->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 2, "Viewer pointCloud");
-	viewer->addCoordinateSystem(1.0);
+	//viewer->addCoordinateSystem(1.0);
 	viewer->setBackgroundColor(0, 0, 0);
 	viewer->initCameraParameters();
 	viewer->setCameraPosition(0, 0, -2, 0, 0, 0, 0, -1, 0, 0);

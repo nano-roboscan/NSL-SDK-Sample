@@ -266,6 +266,7 @@ class NslPCD(Structure):
         ("includeRgb", c_bool),
         ("includeLidar", c_bool),
         ("includeImu", c_bool),
+        ("includeYml", c_bool),
         ("width", c_int),
         ("height", c_int),
         ("roiXMin", c_int),
@@ -386,6 +387,12 @@ class NanoLidar:
 
         _nsl.nsl_getCurrentConfig.argtypes = [c_int, POINTER(NslConfig)]
         _nsl.nsl_getCurrentConfig.restype  = c_int
+        
+        _nsl.nsl_getDepthAtPixel.argtypes = [c_int, c_int, c_int, POINTER(NslPCD)]
+        _nsl.nsl_getDepthAtPixel.restype  = c_double
+        
+        _nsl.nsl_getPixelAtDepth.argtypes = [c_int, c_int, c_int, POINTER(NslVec3b)]
+        _nsl.nsl_getPixelAtDepth.restype  = NslVec3b
         
         self.rgb = (NslVec3b * (NSL_RGB_IMAGE_HEIGHT * NSL_RGB_IMAGE_WIDTH))()
         self.rgb_np = np.ctypeslib.as_array(self.rgb).view(np.uint8).reshape(
@@ -681,6 +688,12 @@ class NanoLidar:
         
     def get_amplitude_color(self, value):
         return _nsl.nsl_getAmplitudeColor(value)
+        
+    def get_pixel_at_depth(self, depthX, depthY):
+        return _nsl.nsl_getPixelAtDepth(self.handle, depthX, depthY, self.rgb)
+
+    def get_depth_at_pixel(self, rgbX, rgbY, frame):
+        return _nsl.nsl_getDepthAtPixel(self.handle, rgbX, rgbY, byref(frame))
 
     # ---------------- 벡터화 함수 ----------------
     def get_distance_color_array(self, value_array):

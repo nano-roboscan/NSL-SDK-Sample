@@ -26,6 +26,16 @@ void mouseCallbackCV(int event, int x, int y, int flags, void* user_data)
 	}
 }
 
+void mouseCallbackRgbCV(int event, int x, int y, int flags, void* user_data)
+{
+	(void)flags;
+	(void)user_data;
+	if (event == EVENT_LBUTTONUP)
+	{
+		gtViewerInfo.mouseRgbX = x;
+		gtViewerInfo.mouseRgbY = y;
+	}
+}
 
 char *getDataTypeName(OPERATION_MODE_OPTIONS type)
 {

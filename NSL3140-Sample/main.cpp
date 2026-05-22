@@ -22,8 +22,8 @@ VIEWER_INFO	gtViewerInfo;
 /**
  * @brief openCV draw function
  * 
- * @param distMat : Mat data to be drawn on the screen
- * @param handleIndex : handle index by nsl_open()
+ * @param distMat : Input distance image used for drawing cursor and overlay information.
+ * @param finalRgbBuffer : Output image buffer containing the original RGB image and appended distance information area
  * 
  * @return cv::Mat 
  */
@@ -45,7 +45,7 @@ void addDistanceInfo(Mat &distMat, Mat &finalBuffer, NslPCD *ptNslPCD, int lidar
 		imu_caption = format("Roll : %.6f, Pitch : %.6f", gtViewerInfo.roll, gtViewerInfo.pitch);
 		drawCube(distMat, gtViewerInfo.roll, gtViewerInfo.pitch);
 	}
-
+ 
 	if( gtViewerInfo.autoIntRoiEnable == FUNCTION_OPTIONS::FUNC_ON ){
 		int x1 = gtViewerInfo.autoIntRoi.x_start * scaleSize;
 		int y1 = gtViewerInfo.autoIntRoi.y_start * scaleSize;
@@ -128,6 +128,52 @@ void addDistanceInfo(Mat &distMat, Mat &finalBuffer, NslPCD *ptNslPCD, int lidar
 		putText(infoImage, int_caption.c_str(), Point(10, 50), FONT_HERSHEY_SIMPLEX, textSize, Scalar(0, 0, 0), 1, cv::LINE_AA);			
 
 		vconcat(distMat, infoImage, finalBuffer);
+	}
+
+	return;
+}
+
+/**
+ * @brief Draws RGB cursor position and distance information on the image.
+ * 
+ * @param rgbMat : Input RGB image used for drawing cursor and overlay information.
+ * @param finalRgbBuffer : Output image buffer containing the original RGB image and appended distance information area
+ * @param ptNslPCD : Pointer to distance/point cloud data received from nsl_getPointCloudRgbData().
+ *
+ * @return void
+ */
+void addRgbInfo(Mat &rgbMat, Mat &finalRgbBuffer, NslPCD *ptNslPCD)
+{
+	int rgb_xpos = gtViewerInfo.mouseRgbX;
+	int rgb_ypos = gtViewerInfo.mouseRgbY;
+	float textSize = 2.0f;
+//	int xMin = ptNslPCD->roiXMin;
+
+	if( rgb_xpos > -1 && rgb_ypos > -1 && rgb_xpos < NSL_RGB_IMAGE_WIDTH &&  rgb_ypos < NSL_RGB_IMAGE_HEIGHT ){
+		Point3D dist = nsl_getDepthAtPixel(gtViewerInfo.handle, rgb_xpos, rgb_ypos, ptNslPCD);
+		//printf("dist = %.2f, rgb_xpos = %d, rgb_ypos = %d\n", dist,rgb_xpos, rgb_ypos);
+
+		line(rgbMat, Point(rgb_xpos-23, rgb_ypos), Point(rgb_xpos+23, rgb_ypos), Scalar(255, 255, 0), 4);
+		line(rgbMat, Point(rgb_xpos, rgb_ypos-25), Point(rgb_xpos, rgb_ypos+25), Scalar(255, 255, 0), 4);
+
+		string info_caption;
+		Mat infoImage(DISTANCE_INFO_HEIGHT, rgbMat.cols, CV_8UC3, Scalar(255, 255, 255));
+
+		if( dist.z < 0 ) // The condition must be based solely on the z value.
+			info_caption = format("X:%d,Y:%d (X/Y/Z None)", rgb_xpos, rgb_ypos);
+		else
+			info_caption = format("X:%d,Y:%d, %.1fmm/%.1fmm/%.1fmm", rgb_xpos, rgb_ypos, dist.x, dist.y, dist.z);
+
+		putText(infoImage, info_caption.c_str(), Point(10, 55), FONT_HERSHEY_SIMPLEX, textSize, Scalar(0, 0, 0), 3, cv::LINE_AA);
+		vconcat(rgbMat, infoImage, finalRgbBuffer);
+	}
+	else{
+		string info_caption;
+		Mat infoImage(DISTANCE_INFO_HEIGHT, rgbMat.cols, CV_8UC3, Scalar(255, 255, 255));
+
+		info_caption = format("X:0,Y:0, X/Y/Z None", rgb_xpos, rgb_ypos);
+		putText(infoImage, info_caption.c_str(), Point(10, 55), FONT_HERSHEY_SIMPLEX, textSize, Scalar(0, 0, 0), 3, cv::LINE_AA);
+		vconcat(rgbMat, infoImage, finalRgbBuffer);
 	}
 
 	return;
@@ -237,7 +283,8 @@ void processPointCloud(NslPCD *ptNslPCD)
 								&& ptNslPCD->distance3D[OUT_Y][y+yMin][x+xMin] >= gtViewerInfo.area_top && ptNslPCD->distance3D[OUT_Y][y+yMin][x+xMin] <= gtViewerInfo.area_bottom
 								&& ptNslPCD->distance3D[OUT_Z][y+yMin][x+xMin] >= gtViewerInfo.area_start && ptNslPCD->distance3D[OUT_Z][y+yMin][x+xMin] <= gtViewerInfo.area_end )
 							{
-								NslVec3b color3D = nsl_getDistanceColor(ptNslPCD->distance3D[OUT_Z][y+yMin][x+xMin]);
+								//NslVec3b color3D = nsl_getDistanceColor(ptNslPCD->distance3D[OUT_Z][y+yMin][x+xMin]);
+								NslVec3b color3D = ptNslPCD->includeRgb && ptNslPCD->includeYml ? nsl_getPixelAtDepth(handle, x+xMin, y+yMin, gtViewerInfo.rgb.data()) : nsl_getDistanceColor(ptNslPCD->distance3D[OUT_Z][y+yMin][x+xMin]);
 								point.b = color3D.b;
 								point.g = color3D.g;
 								point.r = color3D.r;
@@ -250,7 +297,9 @@ void processPointCloud(NslPCD *ptNslPCD)
 							}
 						}
 						else{
-							NslVec3b color3D = nsl_getDistanceColor(ptNslPCD->distance3D[OUT_Z][y+yMin][x+xMin]);
+//							NslVec3b color3D = nsl_getDistanceColor(ptNslPCD->distance3D[OUT_Z][y+yMin][x+xMin]);
+							NslVec3b color3D = ptNslPCD->includeRgb && ptNslPCD->includeYml ? nsl_getPixelAtDepth(handle, x+xMin, y+yMin, gtViewerInfo.rgb.data()) : nsl_getDistanceColor(ptNslPCD->distance3D[OUT_Z][y+yMin][x+xMin]);
+
 							point.b = color3D.b;
 							point.g = color3D.g;
 							point.r = color3D.r;
@@ -300,11 +349,16 @@ void processPointCloud(NslPCD *ptNslPCD)
 				
 				if( includeRgb ){
 					includeRgb = false;
-					static Mat resizeRgbBuffer;
-					cv::resize( imageRgb, resizeRgbBuffer, cv::Size( 640, 360 ), 0, 0, INTER_LINEAR );
+					static Mat finalRgbBuffer;
+
+					addRgbInfo(imageRgb, finalRgbBuffer, ptNslPCD);
 	
 					sprintf(distanceViewName,"RGB <%d>", handle);
-					imshow(distanceViewName, resizeRgbBuffer);
+
+					namedWindow(distanceViewName, cv::WINDOW_NORMAL);
+					resizeWindow(distanceViewName, 640, 370);
+					imshow(distanceViewName, finalRgbBuffer);
+					setMouseCallback(distanceViewName, mouseCallbackRgbCV);
 				}
 			}
 			else if( includeGrayscale ){
@@ -321,12 +375,17 @@ void processPointCloud(NslPCD *ptNslPCD)
 	else if( includeRgb && (gtViewerInfo.drawView & DRAW_OPENCV_VIEW) ) 
 	{
 		char distanceViewName[100];
-
+		static Mat rgbBuffer;
+		
+		addRgbInfo(imageRgb, rgbBuffer, ptNslPCD);
+		
 		sprintf(distanceViewName,"RGB <%d>", handle);
-
-		namedWindow(distanceViewName, WINDOW_NORMAL);
-		imshow(distanceViewName, imageRgb);
-		setMouseCallback(distanceViewName, mouseCallbackCV);
+		
+		namedWindow(distanceViewName, cv::WINDOW_NORMAL);
+		resizeWindow(distanceViewName, 640, 370);
+		imshow(distanceViewName, rgbBuffer);
+		setMouseCallback(distanceViewName, mouseCallbackRgbCV);
+		
 	}
 
 	if( gtViewerInfo.startLog ){
@@ -343,14 +402,14 @@ void processPointCloud(NslPCD *ptNslPCD)
 bool CaptureData()
 {
 	if( gtViewerInfo.isRgbCommand() ){
-		if( nsl_getPointCloudRgbData(gtViewerInfo.handle, gtViewerInfo.latestFrame.get(), gtViewerInfo.rgb.data(), 0) == NSL_ERROR_TYPE::NSL_SUCCESS )
+		if( nsl_getPointCloudRgbData(gtViewerInfo.handle, gtViewerInfo.latestFrame.get(), gtViewerInfo.rgb.data(), 1000) == NSL_ERROR_TYPE::NSL_SUCCESS )
 		{
 			gtViewerInfo.frameCount++;
 			return true;
 		}
 	}
 	else{
-		if( nsl_getPointCloudData(gtViewerInfo.handle, gtViewerInfo.latestFrame.get(), 0) == NSL_ERROR_TYPE::NSL_SUCCESS )
+		if( nsl_getPointCloudData(gtViewerInfo.handle, gtViewerInfo.latestFrame.get(), 1000) == NSL_ERROR_TYPE::NSL_SUCCESS )
 		{
 			gtViewerInfo.frameCount++;
 			return true;
@@ -359,8 +418,6 @@ bool CaptureData()
 
 	return false;
 }
-
-
 
 //////////////////////////////////// main function /////////////////////////////////////////////
 
@@ -407,8 +464,7 @@ int main(int argc, char *argv[])
 
 	gtViewerInfo.nslConfig.lidarAngle = 0;
 	gtViewerInfo.nslConfig.lensType = NslOption::LENS_TYPE::LENS_SF;
-	gtViewerInfo.handle = nsl_open("", &gtViewerInfo.nslConfig, FUNCTION_OPTIONS::FUNC_ON);
-//	gtViewerInfo.handle = nsl_open(gtViewerInfo.ipAddress, &gtViewerInfo.nslConfig, FUNCTION_OPTIONS::FUNC_ON);
+	gtViewerInfo.handle = nsl_open(gtViewerInfo.ipAddress, &gtViewerInfo.nslConfig, FUNCTION_OPTIONS::FUNC_ON);
 	if( gtViewerInfo.handle < 0 ){
 		printf("nsl_open::handle open error::%d\n", gtViewerInfo.handle);
 		exit(0);
@@ -431,10 +487,10 @@ int main(int argc, char *argv[])
 	nsl_saveConfiguration(gtViewerInfo.handle);
 	nsl_getCurrentConfig(gtViewerInfo.handle, &gtViewerInfo.nslConfig);
 #endif
-	//nsl_setIntegrationTime(gtViewerInfo.handle, 1000, 300, 0, 100);
+	//nsl_setIntegrationTime(gtViewerInfo.handle, 700, 300, 0, 100);
 	//nsl_setAutoIntegrationTime(gtViewerInfo.handle, &gtViewerInfo.autoIntRoi, gtViewerInfo.autoIntRoiEnable);
+	//nsl_setFrameRate(gtViewerInfo.handle, FRAME_RATE_OPTIONS::FRAME_20FPS);
 	//gtViewerInfo.streamingMode = false;
-	//nsl_setFrameRate(gtViewerInfo.handle, FRAME_RATE_OPTIONS::FRAME_15FPS);
 	//gtViewerInfo.operationMode = OPERATION_MODE_OPTIONS::RGB_DISTANCE_MODE;
 	//gtViewerInfo.rgb.resize(NSL_RGB_IMAGE_WIDTH * NSL_RGB_IMAGE_HEIGHT); 
 
@@ -444,10 +500,12 @@ int main(int argc, char *argv[])
 	nsl_getCurrentConfig(gtViewerInfo.handle, &gtViewerInfo.nslConfig);
 	printConfiguration();
 
+
 	if( !gtViewerInfo.streamingMode )
 		nsl_requestSingleFrame(gtViewerInfo.handle, gtViewerInfo.operationMode);
 	else
 		nsl_streamingOn(gtViewerInfo.handle, gtViewerInfo.operationMode);
+
 
 	while( gtViewerInfo.mainRunning != 0 )
 	{

@@ -49,6 +49,8 @@ typedef struct ViewerInfo_
 	int 		mainRunning;
 	int		mouseX;
 	int		mouseY;
+	int		mouseRgbX;
+	int		mouseRgbY;
 	int 		frameCount;
 	int 		oneSecond;
 	int 		drawframeCount;
@@ -101,10 +103,12 @@ typedef struct ViewerInfo_
 		mainRunning = 1;
 		mouseX = -1;
 		mouseY = -1;
+		mouseRgbX = -1;
+		mouseRgbY = -1;
 		streamingMode = true;
 		bImuData = false;
 
-		area_enable = true; // true : area display, false : all display
+		area_enable = false; // true : area display, false : all display
 		area_left = -800;// -800.0f; // mm
 		area_right = 1500;// 1500.0f; // mm
 		area_top = -500.0f; // mm
@@ -173,6 +177,7 @@ void createLogDirectory() ;
 void logData(NslPCD *ptNslPCD);
 
 void mouseCallbackCV(int event, int x, int y, int flags, void* user_data);
+void mouseCallbackRgbCV(int event, int x, int y, int flags, void* user_data);
 char *getDataTypeName(OPERATION_MODE_OPTIONS type);
 void timeDelay(int milli);
 void setMatrixColor(Mat image, int x, int y, NslVec3b color);
