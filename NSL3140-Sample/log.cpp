@@ -78,7 +78,7 @@ void saveRGB(NslPCD *ptNslPCD, const std::string& filePath)
 	cv::Mat imageRgb(NSL_RGB_IMAGE_HEIGHT, NSL_RGB_IMAGE_WIDTH, CV_8UC3);  // BGR
 	int totalPixels = NSL_RGB_IMAGE_HEIGHT * NSL_RGB_IMAGE_WIDTH;
 	cv::Vec3b* dstPtr = imageRgb.ptr<cv::Vec3b>();
-	NslOption::NslVec3b* srcPtr = gtViewerInfo.rgb.data();
+	NslVec3b* srcPtr = gtViewerInfo.rgb.data();
 
 	for (int i = 0; i < totalPixels; ++i) {
 	    dstPtr[i] = cv::Vec3b(

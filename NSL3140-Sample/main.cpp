@@ -221,7 +221,7 @@ void processPointCloud(NslPCD *ptNslPCD)
 	{
 		int totalPixels = NSL_RGB_IMAGE_HEIGHT * NSL_RGB_IMAGE_WIDTH;
 		cv::Vec3b* dstPtr = imageRgb.ptr<cv::Vec3b>();
-		NslOption::NslVec3b* srcPtr = gtViewerInfo.rgb.data();
+		NslVec3b* srcPtr = gtViewerInfo.rgb.data();
 
 		for (int i = 0; i < totalPixels; ++i) {
 		    dstPtr[i] = cv::Vec3b(

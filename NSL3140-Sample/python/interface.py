@@ -163,8 +163,27 @@ NSL_ANSWER_ERROR = -7
 NSL_INVALID_PARAMETER = -8
 
 
+# NslVec3b structure in nanolib.h
+class NslVec3b(ctypes.Structure):
+    _pack_ = 1
+    _fields_ = [
+        ("b", c_ubyte),
+        ("g", c_ubyte),
+        ("r", c_ubyte)
+    ]
+    
+    @property
+    def __array_interface__(self):
+        return {
+            'descr': [('', np.uint8)],
+            'shape': (3,),
+            'typestr': np.dtype(np.uint8).str,
+            'data': (ctypes.addressof(self), False)
+        }
+        
 # ImuData structure in nanolib.h
 class ImuData(ctypes.Structure):
+    _pack_ = 1
     _fields_ = [
         ("ax", ctypes.c_float),
         ("ay", ctypes.c_float),
@@ -181,8 +200,21 @@ class ImuData(ctypes.Structure):
         ("yaw", ctypes.c_float)
     ]    
 
+
+# Point3D structure in nanolib.h
+class Point3D(ctypes.Structure):
+    _pack_ = 1
+    _fields_ = [
+        ("x", c_double),
+        ("y", c_double),
+        ("z", c_double)
+    ]
+
+
+
 # NslConfig structure in nanolib.h
 class NslConfig(ctypes.Structure):
+    _pack_ = 1
     _fields_ = [
         ("integrationTime3D", ctypes.c_int),
         ("integrationTime3DHdr1", ctypes.c_int),
@@ -229,36 +261,10 @@ class NslConfig(ctypes.Structure):
         ("frameRateOpt", ctypes.c_int),
         ("grayscaleIlluminationOpt", ctypes.c_int)
     ]
-    
-class NslAutoIntROI(ctypes.Structure):
-    _fields_ = [
-        ("x_start", c_int),
-        ("y_start", c_int),
-        ("x_end", c_int),
-        ("y_end", c_int),
-        ("max_overflow", c_int),
-        ("min_intTime", c_int)
-    ]
-    
-# NslVec3b structure in nanolib.h
-class NslVec3b(ctypes.Structure):
-    _fields_ = [
-        ("b", c_ubyte),
-        ("g", c_ubyte),
-        ("r", c_ubyte)
-    ]
-    
-    @property
-    def __array_interface__(self):
-        return {
-            'descr': [('', np.uint8)],
-            'shape': (3,),
-            'typestr': np.dtype(np.uint8).str,
-            'data': (ctypes.addressof(self), False)
-        }
    
 # NslPCD structure in nanolib.h
-class NslPCD(Structure):
+class NslPCD(ctypes.Structure):
+    _pack_ = 1
     _fields_ = [
         ("operationMode", c_int),
         ("lidarType", c_int),
@@ -267,6 +273,7 @@ class NslPCD(Structure):
         ("includeLidar", c_bool),
         ("includeImu", c_bool),
         ("includeYml", c_bool),
+        ("imuData", ImuData),
         ("width", c_int),
         ("height", c_int),
         ("roiXMin", c_int),
@@ -278,8 +285,7 @@ class NslPCD(Structure):
         # 대용량 버퍼 (SDK 해상도 기준)
         ("amplitude", c_int * (NSL_LIDAR_TYPE_B_HEIGHT  * NSL_LIDAR_TYPE_B_WIDTH)),
         ("distance2D", c_int * (NSL_LIDAR_TYPE_B_HEIGHT  * NSL_LIDAR_TYPE_B_WIDTH)),
-        ("distance3D", c_double * (MAX_OUT * NSL_LIDAR_TYPE_B_HEIGHT  * NSL_LIDAR_TYPE_B_WIDTH)),
-        ("imuData", ImuData)
+        ("distance3D", c_double * (MAX_OUT * NSL_LIDAR_TYPE_B_HEIGHT  * NSL_LIDAR_TYPE_B_WIDTH))
     ]
 
     def __init__(self, *args, **kwargs):
@@ -305,6 +311,25 @@ class NslPCD(Structure):
     def np_distance3D(self):
         return self.distance3D_np
 
+class NslBitInfo(ctypes.Structure):
+    _pack_ = 1
+    _fields_ = [
+        ("current", c_int),
+        ("voltage", c_double),
+        ("temperature", c_double)
+    ]
+    
+class NslAutoIntROI(ctypes.Structure):
+    _pack_ = 1
+    _fields_ = [
+        ("x_start", c_int),
+        ("y_start", c_int),
+        ("x_end", c_int),
+        ("y_end", c_int),
+        ("max_overflow", c_int),
+        ("min_intTime", c_int)
+    ]
+    
 
 # Python Wrapper
 class NanoLidar:
@@ -389,7 +414,7 @@ class NanoLidar:
         _nsl.nsl_getCurrentConfig.restype  = c_int
         
         _nsl.nsl_getDepthAtPixel.argtypes = [c_int, c_int, c_int, POINTER(NslPCD)]
-        _nsl.nsl_getDepthAtPixel.restype  = c_double
+        _nsl.nsl_getDepthAtPixel.restype  = Point3D
         
         _nsl.nsl_getPixelAtDepth.argtypes = [c_int, c_int, c_int, POINTER(NslVec3b)]
         _nsl.nsl_getPixelAtDepth.restype  = NslVec3b

@@ -24,6 +24,10 @@ import numpy as np
 import interface
 import math
 
+import threading
+from concurrent.futures import ThreadPoolExecutor
+
+executor = ThreadPoolExecutor(max_workers=1)
 # -------------------------------------- class --------------------------------------------------#
 # --- viewerInfo ---
 class ViewerInfo:
@@ -32,6 +36,8 @@ class ViewerInfo:
         # mouse position
         self.mouseX = -1
         self.mouseY = -1
+        self.mouseRgbX = -1
+        self.mouseRgbY = -1
         #-----------------------------------
         # view mode
         self.start_time = time.time()
@@ -44,11 +50,11 @@ class ViewerInfo:
         self.saveLog = False;
         #-----------------------------------
         # lidar mode
-        self.lensType = interface.LENS_SF
+        self.lensType = interface.LENS_NF
         self.lidarAngle = 0        
         self.ipAddress = "192.168.0.220"
         #self.ipAddress = "\\\\.\\COM12"
-        self.operationMode = interface.RGB_DISTANCE_AMPLITUDE_MODE
+        self.operationMode = interface.DISTANCE_AMPLITUDE_MODE
         # ----------------------------------
         # 3D area settings
         self.area_left               = -800
@@ -170,7 +176,7 @@ def save_rgb(frame, file_path: str):
     if not frame.includeRgb:
         return
     # numpy array 변환
-    cv2.imwrite(file_path + ".jpg", frame.np_rgb())
+    cv2.imwrite(file_path + ".jpg", lidar.get_rgb_np())
 
 def save_index(file_path: str, s: str):
     """인덱스 문자열을 파일에 append 저장"""
@@ -214,6 +220,11 @@ def mouseCallbackCV(event, x, y, flags, param):
     if event == cv2.EVENT_LBUTTONUP:
         viewerInfo.mouseX = x
         viewerInfo.mouseY = y
+
+def mouseCallbackRgbCV(event, x, y, flags, param):
+    if event == cv2.EVENT_LBUTTONUP:
+        viewerInfo.mouseRgbX = x
+        viewerInfo.mouseRgbY = y
 
 def drawCube(imageMat, roll, pitch):
     roi_size = imageMat.shape[1] // 15
@@ -294,7 +305,51 @@ def drawCube(imageMat, roll, pitch):
             pt1 = tuple(imagePoints[startIdx].astype(int))
             pt2 = tuple(imagePoints[endIdx].astype(int))
             cv2.line(roi, pt1, pt2, (0, 255, 255), 1, cv2.LINE_AA)
+
+def addRgbInfo(rgbMat, pcdData):
+    rgb_xpos = viewerInfo.mouseRgbX
+    # 파이썬 OpenCV의 Mat 속성 (Height, Width, Channel)
+    rgbMat_height, rgbMat_cols = rgbMat.shape[:2] 
+    
+    textSize = 2.0
+    
+    # 조건 검사
+    if (-1 < rgb_xpos < interface.NSL_RGB_IMAGE_WIDTH) and (-1 < viewerInfo.mouseRgbY < interface.NSL_RGB_IMAGE_HEIGHT):
+        rgb_ypos = viewerInfo.mouseRgbY
+
+        #rgbx = 909, rgby = 473
+        #lidarY = 104, lidarX = 135
+        p3d = lidar.get_depth_at_pixel(909, 473, pcdData)
+        print(f"get_depth_at_pixel x = {p3d.x}mm, y = {p3d.y}mm, z = {p3d.z}mm, lidar = {pcdData.includeLidar}")
+        print(f"3d depth xyz = {pcdData.np_distance3D()[interface.OUT_X, 104, 135]}, {pcdData.np_distance3D()[interface.OUT_Y, 104, 135]}, {pcdData.np_distance3D()[interface.OUT_Z, 104, 135]}")
+
+        dist = lidar.get_depth_at_pixel(rgb_xpos, rgb_ypos, pcdData)     
+
+        cv2.line(rgbMat, (rgb_xpos - 23, rgb_ypos), (rgb_xpos + 23, rgb_ypos), (255, 255, 0), 4)
+        cv2.line(rgbMat, (rgb_xpos, rgb_ypos - 25), (rgb_xpos, rgb_ypos + 25), (255, 255, 0), 4)
+        
+        infoImage = np.full((135, rgbMat_cols, 3), 255, dtype=np.uint8)
+        
+        if dist.z < 0:
+            info_caption = f"X:{rgb_xpos},Y:{rgb_ypos} (X/Y/Z None)"
+        else:
+            info_caption = f"X:{rgb_xpos},Y:{rgb_ypos}, {dist.x:.1f}mm/{dist.y:.1f}mm/{dist.z:.1f}mm"
             
+        # 텍스트 그리기 (색상: 검은색 (0,0,0), 두께: 3, LINE_AA)
+        cv2.putText(infoImage, info_caption, (10, 55), cv2.FONT_HERSHEY_SIMPLEX, textSize, (0, 0, 0), 3, cv2.LINE_AA)
+        
+        # 위아래로 이미지 이어붙이기 (vconcat)
+        finalRgbBuffer = cv2.vconcat([rgbMat, infoImage])
+        
+    else:
+        # 이외의 경우 처리
+        infoImage = np.full((135, rgbMat_cols, 3), 255, dtype=np.uint8)
+        info_caption = f"X:0,Y:0, X/Y/Z None"
+        
+        cv2.putText(infoImage, info_caption, (10, 55), cv2.FONT_HERSHEY_SIMPLEX, textSize, (0, 0, 0), 3, cv2.LINE_AA)
+        finalRgbBuffer = cv2.vconcat([rgbMat, infoImage])
+        
+    return finalRgbBuffer
     
 # --- addDistanceInfo ---
 def addDistanceInfo(distMat, frame, lidarWidth, lidarHeight, scaleSize):
@@ -513,19 +568,18 @@ def visualize_loop():
                     #histImg = cv2.equalizeHist(grayImg)
                     #equalizeAmplImg = cv2.cvtColor(histImg, cv2.COLOR_GRAY2BGR)
 
-                    # 합쳐서 보기
-                    vis2d = np.hstack([distResize, amplResize])
                     if frames[frame_index].includeRgb:
                         rgb = lidar.get_rgb_np()
-                        #target_w, target_h = 640, 480
-                        #h, w = rgb.shape[:2]
-                        #scale = min(target_w / w, target_h / h)
-                        #new_w = int(w * scale)
-                        #new_h = int(h * scale)            
                         rgb = np.ascontiguousarray(rgb, dtype=np.uint8)                        
-                        small = cv2.resize(rgb, (vis2d.shape[1], 360))
-                        vis2d = np.vstack([vis2d, small])
+                        finalRgbBuffer = addRgbInfo(rgb, frames[frame_index])
+                        rgbviewName = f"RGB viewer"
+                        cv2.namedWindow(rgbviewName, cv2.WINDOW_NORMAL)
+                        cv2.resizeWindow(rgbviewName, 640, 370)
+                        cv2.imshow(rgbviewName, finalRgbBuffer)
+                        cv2.setMouseCallback(rgbviewName, mouseCallbackRgbCV)
                         
+                    # 합쳐서 보기
+                    vis2d = np.hstack([distResize, amplResize])
                     vis2d = addDistanceInfo(vis2d, frames[frame_index], lidar_width, lidar_height, int(imgScale))
                     cv2.imshow(winName, vis2d)
     
@@ -540,10 +594,14 @@ def visualize_loop():
                     
                     valid_mask = (z_roi < interface.NSL_LIMIT_FOR_VALID_DATA).flatten()
                     valid_indices = np.flatnonzero(valid_mask)
-                    
-                    x_valid = (x_roi.flatten())[valid_mask]
-                    y_valid = (y_roi.flatten())[valid_mask]
-                    z_valid = (z_roi.flatten())[valid_mask]
+
+                    x_flat = np.nan_to_num(x_roi.flatten(), nan=0.0, posinf=0.0, neginf=0.0)
+                    y_flat = np.nan_to_num(y_roi.flatten(), nan=0.0, posinf=0.0, neginf=0.0)
+                    z_flat = np.nan_to_num(z_roi.flatten(), nan=0.0, posinf=0.0, neginf=0.0)
+
+                    x_valid = x_flat[valid_mask]
+                    y_valid = y_flat[valid_mask]
+                    z_valid = z_flat[valid_mask]
                     
                     cloud_points_np[valid_mask, 0] = x_valid / 1000.0
                     cloud_points_np[valid_mask, 1] = -y_valid / 1000.0
@@ -580,7 +638,8 @@ def visualize_loop():
                                 cloud_colors_np[area_indices, :] = rgb_colors
                 
                             else:
-                                z_vals_int = np.clip(z_valid[area_mask].astype(int), 0, interface.NSL_LIMIT_FOR_VALID_DATA - 1)
+                                z_area_clean = np.nan_to_num(z_valid[area_mask], nan=0.0, posinf=0.0, neginf=0.0)
+                                z_vals_int = np.clip(z_area_clean.astype(int), 0, interface.NSL_LIMIT_FOR_VALID_DATA - 1)
                                 cloud_colors_np[area_indices, :] = color_3d_lut[z_vals_int]
 
                             viewerInfo.area_inCount = np.sum(area_mask)
@@ -602,7 +661,9 @@ def visualize_loop():
                                 
                             cloud_colors_np[valid_indices, :] = rgb_colors
                         else:
-                            z_vals_int = np.clip(z_valid.astype(int), 0, interface.NSL_LIMIT_FOR_VALID_DATA - 1)
+                            z_valid_clean = np.nan_to_num(z_valid, nan=0.0, posinf=0.0, neginf=0.0).copy()
+                            z_valid_clipped = np.clip(z_valid_clean, 0.0, float(interface.NSL_LIMIT_FOR_VALID_DATA - 1))
+                            z_vals_int = z_valid_clipped.astype(np.int32)
                             cloud_colors_np[valid_indices, :] = color_3d_lut[z_vals_int]
                     
                     if first_frame:
@@ -621,13 +682,13 @@ def visualize_loop():
 
             elif frames[frame_index].includeRgb:
                 rgb = lidar.get_rgb_np()
-                #target_w, target_h = 640, 480
-                #h, w = rgb.shape[:2]
-                #scale = min(target_w / w, target_h / h)
-                #new_w = int(w * scale)
-                #new_h = int(h * scale)                        
-                small = cv2.resize(rgb, (vis2d.shape[1], 360))
-                cv2.imshow(winName, small)
+                rgb = np.ascontiguousarray(rgb, dtype=np.uint8)                        
+                finalRgbBuffer = addRgbInfo(rgb, frames[frame_index])
+                rgbviewName = f"RGB viewer"
+                cv2.namedWindow(rgbviewName, cv2.WINDOW_NORMAL)
+                cv2.resizeWindow(rgbviewName, 640, 370)
+                cv2.imshow(rgbviewName, finalRgbBuffer)
+                cv2.setMouseCallback(rgbviewName, mouseCallbackRgbCV)
 
             viewerInfo.updateFps()
 
@@ -657,9 +718,9 @@ if __name__ == "__main__":
     lidar = interface.NanoLidar(viewerInfo.ipAddress, viewerInfo.lensType, viewerInfo.lidarAngle, interface.FUNC_ON)
     lidar.set_filters(interface.FUNC_ON, interface.FUNC_ON, 300, 200, 0, 0, interface.FUNC_OFF)
     lidar.set_3d_filter(150)
-    lidar.set_color_range(interface.MAX_DISTANCE_12MHZ, interface.MAX_GRAYSCALE_VALUE, interface.FUNC_ON)
+    lidar.set_color_range(interface.MAX_DISTANCE_12MHZ, 1024, interface.FUNC_ON)
 #    lidar.set_frame_rate(interface.FRAME_15FPS)
-#    lidar.set_modulation(interface.MOD_24Mhz, interface.MOD_CH0, interface.FUNC_OFF)
+    lidar.set_modulation(interface.MOD_12Mhz, interface.MOD_CH0, interface.FUNC_OFF)
 #    lidar.set_dual_beam(interface.DB_3MHZ, interface.DB_CORRECTION)
 #    lidar.set_intetration_time(1000, 50, 0, 100)
 #    lidar.set_hdr_mode(interface.HDR_NONE_MODE) #HDR_TEMPORAL_MODE, HDR_SPATIAL_MODE, HDR_NONE_MODE
